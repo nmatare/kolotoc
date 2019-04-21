@@ -1,0 +1,12 @@
+apiVersion: v1
+appVersion: 0.12.1
+description: A Helm chart for deploying Tensorflow/Horovod alongside Dask
+maintainers:
+- email: nathan.matare@gmail.com 
+  name: Nathan Matare
+name: kolotoc
+sources:
+- https://github.com/uber/horovod/
+- https://www.tensorflow.org/
+- https://distributed.dask.org/en/latest/
+version: 1.0.2

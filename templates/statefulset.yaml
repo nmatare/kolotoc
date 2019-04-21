@@ -1,0 +1,131 @@
+---
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: {{ template "kolotoc.fullname" . }}
+  labels:
+    app: {{ template "kolotoc.name" . }}
+    chart: {{ template "kolotoc.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    role: worker
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "kolotoc.name" . }}
+      release: {{ .Release.Name }}
+      heritage: {{ .Release.Service }}
+      role: worker
+  serviceName: {{ template "kolotoc.fullname" . }}
+  podManagementPolicy: {{ .Values.worker.podManagementPolicy }}
+  replicas: {{ .Values.worker.number }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "kolotoc.name" . }}
+        chart: {{ template "kolotoc.chart" . }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+        role: worker
+    spec:
+      selector:
+        matchLabels:
+          app: {{ template "kolotoc.name" . }}
+          release: {{ .Release.Name }}
+          role: worker
+      {{- if .Values.useHostNetwork }}
+      hostNetwork: {{ .Values.useHostNetwork }}
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      {{- if .Values.useHostPID }}
+      hostPID: {{ .Values.useHostPID }}
+      {{- end }}
+      volumes:
+      - name: {{ template "kolotoc.fullname" . }}-config
+        configMap:
+          name: {{ template "kolotoc.fullname" . }}
+          items:
+          - key: hostfile.config
+            path: hostfile
+            mode: 438
+          - key: ssh.readiness
+            path: check.sh
+            mode: 365
+          - key: worker.run
+            path: run.sh
+            mode: 365
+      - name: {{ template "kolotoc.fullname" . }}-secret
+        secret:
+          secretName: {{ template "kolotoc.fullname" . }}
+          defaultMode: 448
+          items:
+          - key: host-key
+            path: id_rsa
+          - key: host-key-pub
+            path: authorized_keys
+{{- if .Values.worker.volumes }}
+{{ toYaml .Values.worker.volumes | indent  6 }}
+{{- end }}
+      containers:
+      - name: worker
+        image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+        imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+        env:
+        - name: PROJECT_NAME
+          value: "{{ .Values.projectName }}"
+        - name: HOST_SSH_PORT
+          value: "{{ .Values.ssh.port }}"        
+        - name: CUDA_STUB_LOCATION
+          value: "{{ .Values.cuda.stubs }}"   
+        - name: DASK_SCHEDULER_PORT
+          value: "{{ .Values.scheduler.schedulerPort }}"
+        - name: DASK_WORKER_PROCESS
+          value: "{{ .Values.worker.dask.number }}"
+        - name: DASK_WORKER_GPU
+          value: "{{ .Values.worker.dask.gpu }}"
+        - name: DASK_WORKER_MEM
+          value: "{{ .Values.worker.dask.memory }}"
+        - name: DASK_THREADS_PER_PROCESS
+          value: "{{ .Values.worker.dask.threads }}"
+       {{- if .Values.worker.env }}
+       {{- range $key, $value := .Values.worker.env }}
+        - name: "{{ $key }}"
+          value: "{{ $value }}"
+       {{- end }}
+       {{- end }}
+{{- if .Values.worker.privileged }}
+        securityContext:
+          privileged: true
+{{- end }}
+        ports:
+        - containerPort: {{ .Values.ssh.port }}
+        volumeMounts:
+        - name: {{ template "kolotoc.fullname" . }}-config
+          mountPath: /kolotoc/generated
+        - name: {{ template "kolotoc.fullname" . }}-secret
+          readOnly: true
+          mountPath: "/etc/secret-volume"
+{{- if .Values.volumeMounts }}
+{{ toYaml .Values.volumeMounts | indent 8 }}
+{{- end }}
+        command:
+        - /kolotoc/generated/run.sh
+        args:
+{{ toYaml .Values.worker.args | indent 10 }}             
+        readinessProbe:
+          exec:
+            command:
+            - /kolotoc/generated/check.sh
+          initialDelaySeconds: 1
+          periodSeconds: 2
+        resources:
+{{ toYaml .Values.worker.resources | indent 10 }}
+      tolerations:
+        - key: "node"
+          operator: "Equal"
+          value: "worker"
+          effect: "NoSchedule"
+        - key: "nvidia.com/gpu"
+          operator: "Equal"
+          value: "present"
+          effect: "NoSchedule"

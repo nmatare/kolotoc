@@ -1,0 +1,46 @@
+---
+projectName: ""
+
+cuda: 
+  version: 10.0
+  stubs: ""
+
+ssh:
+  port: 3222
+  hostKey: |-
+    #  -----BEGIN RSA PRIVATE KEY-----
+    #  YourPrivateKey
+    #  -----END RSA PRIVATE KEY-----
+  hostKeyPub: |-
+    #  ssh-rsa YourPublicKey
+
+useHostNetwork: true
+useHostPID: false
+
+scheduler:
+  schedulerPort: ""
+  bokehPort: ""
+  jupyterPort: ""
+  tensorboardPort: ""
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+
+worker:
+  number: 1
+  podManagementPolicy: Parallel
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources: {}
+    # limits:
+    #   nvidia.com/gpu: 0
+    # requests:
+    #   nvidia.com/gpu: 0
+  dask:
+    number: 1
+    gpu: 0
+    threads: 1
+    memory: 2GB
