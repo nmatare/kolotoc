@@ -1,12 +1,10 @@
 ## Introduction
 
-This chart uses the Helm Package Manager to setup:
+This chart uses the [Helm Package Manager](https://helm.sh/) to setup:
 - [Horovod](https://eng.uber.com/horovod/), a distributed framework for training models; and
 - [Dask](https://dask.org/), a framework for distributed analytics at scale.
 
 [Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each worker node (statefulset) is of rank-0 to rank-n (where n is the total number of worker nodes). Each worker node is assigned to one or more [dask-workers](https://distributed.dask.org/en/latest/worker.html). The default number of dask-workers per worker node is given by the number of logical cores on each worker node. Kolotoc also creates a scheduler/master node outside of the computational ring as a Kubernetes deployment. The scheduler node is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
-
-This chart is based off the work done by [cheyang](https://github.com/helm/charts/tree/master/stable/horovod)
 
 # Horovod
 
@@ -22,11 +20,17 @@ This chart is based off the work done by [cheyang](https://github.com/helm/chart
 
 ## Quick deployment on Google Cloud 
 
-  This repository contains `cluster.sh`, a limited utility script to automate the startup and teardown of cluster's running Kolotoc. Currently, `cluster.sh` only supports Google Cloud. 
+  This repository contains `cluster.sh`, a limited utility script to automate the startup and teardown of cluster's running Kolotoc. Currently, `cluster.sh` only supports Google Cloud, and is only tested on Ubuntu.
 
 ### Start Cluster
 
   Assuming you have installed the [Google Cloud SDK](https://cloud.google.com/sdk/) and authenticated to the appropriate account, run `./cluster.sh --num-worker-nodes 2 --machine-type n1-standard-2` to start a two worker distributed ring on Google Cloud n1-standard-2 instances. Type `./cluster.sh --help` for a list of available options.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `useHostNetwork`  | Host network    | `false` |
+| `ssh.port` | The ssh port | `22` |
+
 
 ### Interacting with the Cluster
   

@@ -1,15 +1,10 @@
 # Short Description: 
 # A set of open source technologies enabling the training and evaluation
 # of deep neural networks at scale. 
-# Technologies include: 
 # Dask (data) + Tensorflow (computation) + Horovod (management) + MPI (communication)
 
 # Maintainer: Nathan Matare
-# Email: nmatare@chicagobooth.edu
-
-# -----------------------------------------------------------------------------#
-# (Stage 0 of 3) - Install nvidia-docker image and set configuration details   #
-# -----------------------------------------------------------------------------#
+# Email: nathan.matare@gmail.com
 # Developer Notes: 
 # (1) https://github.com/moby/moby/issues/35018; open issue cannot chown here
 #     $NB_USER is set from jupyter/base-notebook as 'jovyan'
@@ -18,7 +13,7 @@
 #     packages with conda, resulting in multiple libraries frustratingly 
 #     installed into different directories. Conda is used hereinafter. 
 
-FROM daskdev/dask-notebook:latest AS dask
+# Install nvidia-docker image and set configuration details
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04 
 LABEL maintainer "Nathan Matare <nathan.matare@gmail.com>"
 ENV NB_USER='jovyan'\
@@ -59,24 +54,21 @@ ENV PATH="/usr/local/cuda/bin${PATH:+:${PATH}}"
 RUN echo NCCL_DEBUG=DEBUG >> /etc/nccl.conf && \
   rm /etc/update-motd.d/10-help-text
 
-# -----------------------------------------------------------------------------#
-# (Stage 1 of 3) - 'Install' Dask and Jupyter from daskdev/dask-notebook       #
-# -----------------------------------------------------------------------------#
+# 'Install' Dask and Jupyter from daskdev/dask-notebook 
 # Unlike 'FROM daskdev/dask-notebook' which copies environment variables, 
 # 'COPY --from=daskdev/dask-notebook' does not, so these must be set.
 # https://github.com/moby/moby/issues/34482
-
+FROM daskdev/dask-notebook:latest AS dask
 COPY --from=dask \ 
   /home /opt /usr/local/bin/*.sh /usr/local/bin/fix-permissions \
   /usr/bin/*.sh /etc/jupyter /etc/passwd /etc/shadow /etc/group \ 
   /etc/gshadow /tmp/
 
 RUN awk '/^jovyan/' /tmp/passwd >> /etc/passwd && \
- awk '/^jovyan/' /tmp/shadow  >> /etc/shadow && \
- awk '/^wheel/' /tmp/group >> /etc/group && \
- awk '/^wheel/' /tmp/gshadow  >> /etc/gshadow
-
-RUN mv /tmp/*.sh /tmp/fix-permissions /usr/local/bin/ && \
+  awk '/^jovyan/' /tmp/shadow  >> /etc/shadow && \
+  awk '/^wheel/' /tmp/group >> /etc/group && \
+  awk '/^wheel/' /tmp/gshadow  >> /etc/gshadow && \
+  mv /tmp/*.sh /tmp/fix-permissions /usr/local/bin/ && \
   mv /tmp/conda /tmp/app /opt && fix-permissions /opt/conda && \ 
   mv /tmp/${NB_USER} /home/${NB_USER} && fix-permissions /home/${NB_USER} && \
   rm -rf /tmp/*
@@ -95,9 +87,7 @@ RUN mkdir /root/.jupyter/ && \
   echo "c.NotebookApp.open_browser = False" >> /root/.jupyter/jupyter_notebook_config.py && \
   echo "c.NotebookApp.port = 8888" >> /root/.jupyter/jupyter_notebook_config.py 
 
-# -----------------------------------------------------------------------------#
-# (Stage 2 of 3) - Install an MPI implementation                               #
-# -----------------------------------------------------------------------------#
+# Install an MPI implementation 
 # Building from source requires developer tools. https://www.open-mpi.org/source/building.php
 RUN apt-get update && apt-get install -y \
  m4 \ 
@@ -118,8 +108,7 @@ RUN mkdir /tmp/openmpi && \
   ldconfig && \
   rm -rf /tmp/openmpi
 
-# Install MPI-ULFM2
-# http://fault-tolerance.org/ulfm/downloads/
+# Install MPI-ULFM2 http://fault-tolerance.org/ulfm/downloads/
 #RUN mkdir /tmp/openmpi && \
 # cd /tmp/openmpi && \
 # wget https://bitbucket.org/icldistcomp/ulfm2/get/04b0a92b540b.zip && \
@@ -138,10 +127,7 @@ RUN echo "hwloc_base_binding_policy = none" >> /usr/local/etc/openmpi-mca-params
   echo "btl_tcp_if_exclude = lo,docker0" >> /usr/local/etc/openmpi-mca-params.conf && \
   mkdir -p /var/run/sshd
 
-# -----------------------------------------------------------------------------#
-# (Stage 3 of 3) - Install Python packages into the conda base env             #
-# -----------------------------------------------------------------------------#
-# Install python packages into the conda base environment, using CUDA stubs 
+# Install Python packages into the conda base env using CUDA stubs 
 # https://www.anaconda.com/blog/developer-blog/using-pip-in-a-conda-environment/
 ENV PATH=/opt/conda/bin:$PATH 
 RUN pip install tensorflow-gpu && \
