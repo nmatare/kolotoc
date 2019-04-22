@@ -6,18 +6,6 @@
 
   [Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each worker node (statefulset) is of rank-0 to rank-n (where n is the total number of worker nodes). Each worker node is assigned to one or more [dask-workers](https://distributed.dask.org/en/latest/worker.html). The default number of dask-workers per worker node is given by the number of logical cores per worker node. Kolotoc also creates a scheduler node outside of the computational ring as a Kubernetes deployment. The scheduler node serves as the entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
 
-
-  <img src="https://user-images.githubusercontent.com/16640218/34506318-84d0c06c-efe0-11e7-8831-0425772ed8f2.png" width="150" height="150" align="left" style="margin-right: 20px;" >
-  Horovod is a distributed training framework for TensorFlow, Keras, PyTorch, and MXNet. The goal of Horovod is to make distributed Deep Learning fast and easy to use.
-
-  <br style = "line-height:10;"><br>
-
-
-
-  <img src="https://dask.org/_images/dask_horizontal_white_no_pad.svg" width="150" height="100" align="left" style="margin-right: 20px;" >
-
-  Dask natively scales Python, providing advanced parallelism for analytics, enabling performance at scale for the tools you love. Dask uses existing Python APIs and data structures to make it easy to switch between Numpy, Pandas, Scikit-learn to their Dask-powered equivalents. Dask's schedulers scale to thousand-node clusters and its algorithms have been tested on some of the largest supercomputers in the world.
-
 ## Prerequisites
 
 - Kubernetes cluster v1.8+
