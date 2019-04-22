@@ -1,20 +1,19 @@
-# Short Description: 
+# Short Description:
 # A set of open source technologies enabling the training and evaluation
-# of deep neural networks at scale. 
+# of deep neural networks at scale.
 # Dask (data) + Tensorflow (computation) + Horovod (management) + MPI (communication)
-
 # Maintainer: Nathan Matare
 # Email: nathan.matare@gmail.com
-# Developer Notes: 
+# Developer Notes:
 # (1) https://github.com/moby/moby/issues/35018; open issue cannot chown here
 #     $NB_USER is set from jupyter/base-notebook as 'jovyan'
-# (2) This dockerfile is modified from Horovod's because the Horovod images installs 
-#     python packages with pip whereas the Dask notebook Dockerfile installs 
-#     packages with conda, resulting in multiple libraries frustratingly 
-#     installed into different directories. Conda is used hereinafter. 
+# (2) This dockerfile is modified from Horovod's because the Horovod images installs
+#     python packages with pip whereas the Dask notebook Dockerfile installs
+#     packages with conda, resulting in multiple libraries frustratingly
+#     installed into different directories. Conda is used hereinafter.
 
 # Install nvidia-docker image and set configuration details
-FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04 
+FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 LABEL maintainer "Nathan Matare <nathan.matare@gmail.com>"
 ENV NB_USER='jovyan'\
   NB_UID='1000' \
@@ -22,8 +21,8 @@ ENV NB_USER='jovyan'\
   LC_ALL=C.UTF-8 \
   LANG=C.UTF-8 \
   DEBIAN_FRONTEND=noninteractive
-  
-RUN apt-get update && apt-get install -y --allow-downgrades \ 
+
+RUN apt-get update && apt-get install -y --allow-downgrades \
   --allow-change-held-packages --no-install-recommends \
   build-essential \
   cmake \
@@ -32,10 +31,10 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   vim \
   wget \
   unzip \
-  libnccl2 \ 
+  libnccl2 \
   libnccl-dev \
   dbus \
-  pciutils \ 
+  pciutils \
   apt-transport-https \
   ca-certificates \
   libjpeg-dev \
@@ -44,24 +43,24 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   graphviz \
   fonts-liberation \
   nano \
-  openssh-client \ 
+  openssh-client \
   openssh-server \
   sudo && \
   apt-get clean && \
-  rm -rf /var/lib/apt/lists/* 
+  rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/local/cuda/bin${PATH:+:${PATH}}"
 RUN echo NCCL_DEBUG=DEBUG >> /etc/nccl.conf && \
   rm /etc/update-motd.d/10-help-text
 
-# 'Install' Dask and Jupyter from daskdev/dask-notebook 
-# Unlike 'FROM daskdev/dask-notebook' which copies environment variables, 
+# 'Install' Dask and Jupyter from daskdev/dask-notebook
+# Unlike 'FROM daskdev/dask-notebook' which copies environment variables,
 # 'COPY --from=daskdev/dask-notebook' does not, so these must be set.
 # https://github.com/moby/moby/issues/34482
 FROM daskdev/dask-notebook:latest AS dask
-COPY --from=dask \ 
+COPY --from=dask \
   /home /opt /usr/local/bin/*.sh /usr/local/bin/fix-permissions \
-  /usr/bin/*.sh /etc/jupyter /etc/passwd /etc/shadow /etc/group \ 
+  /usr/bin/*.sh /etc/jupyter /etc/passwd /etc/shadow /etc/group \
   /etc/gshadow /tmp/
 
 RUN awk '/^jovyan/' /tmp/passwd >> /etc/passwd && \
@@ -69,7 +68,7 @@ RUN awk '/^jovyan/' /tmp/passwd >> /etc/passwd && \
   awk '/^wheel/' /tmp/group >> /etc/group && \
   awk '/^wheel/' /tmp/gshadow  >> /etc/gshadow && \
   mv /tmp/*.sh /tmp/fix-permissions /usr/local/bin/ && \
-  mv /tmp/conda /tmp/app /opt && fix-permissions /opt/conda && \ 
+  mv /tmp/conda /tmp/app /opt && fix-permissions /opt/conda && \
   mv /tmp/${NB_USER} /home/${NB_USER} && fix-permissions /home/${NB_USER} && \
   rm -rf /tmp/*
 
@@ -85,15 +84,15 @@ RUN mkdir /root/.jupyter/ && \
   echo "c.NotebookApp.ip = '*'" >> /root/.jupyter/jupyter_notebook_config.py && \
   echo "c.NotebookApp.allow_remote_access=True" >> /root/.jupyter/jupyter_notebook_config.py && \
   echo "c.NotebookApp.open_browser = False" >> /root/.jupyter/jupyter_notebook_config.py && \
-  echo "c.NotebookApp.port = 8888" >> /root/.jupyter/jupyter_notebook_config.py 
+  echo "c.NotebookApp.port = 8888" >> /root/.jupyter/jupyter_notebook_config.py
 
-# Install an MPI implementation 
+# Install an MPI implementation
 # Building from source requires developer tools. https://www.open-mpi.org/source/building.php
 RUN apt-get update && apt-get install -y \
- m4 \ 
+ m4 \
  autoconf \
  automake \
- libtool \ 
+ libtool \
  flex
 
 # Install Open-MPI-3.1.2
@@ -127,13 +126,12 @@ RUN echo "hwloc_base_binding_policy = none" >> /usr/local/etc/openmpi-mca-params
   echo "btl_tcp_if_exclude = lo,docker0" >> /usr/local/etc/openmpi-mca-params.conf && \
   mkdir -p /var/run/sshd
 
-# Install Python packages into the conda base env using CUDA stubs 
+# Install Python packages into the conda base env using CUDA stubs
 # https://www.anaconda.com/blog/developer-blog/using-pip-in-a-conda-environment/
-ENV PATH=/opt/conda/bin:$PATH 
+ENV PATH=/opt/conda/bin:$PATH
 RUN pip install tensorflow-gpu && \
-  ldconfig /usr/local/cuda-10.0/targets/x86_64-linux/lib/stubs && \
+  ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
   HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_WITH_TENSORFLOW=1 pip install horovod --no-cache-dir && \
   ldconfig
 
 WORKDIR /root
-
