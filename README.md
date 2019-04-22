@@ -171,3 +171,9 @@ created by cheyang.
 
 What's a kolotoc?
 A [czech carousel](https://sk.wikipedia.org/wiki/Koloto%C4%8D) not unlike the Russian horovod dance.
+
+## Nice-to-have future features
+
+  - [ ] Build [MPI-ULFM2](http://fault-tolerance.org/) to support fault tolerance;
+  - [ ] Add the ability to scale up/down the cluster based upon workload;
+  - [ ] Refactor `cluster.sh` into a program that supports multiple cloud providers;
