@@ -54,23 +54,23 @@ spec:
 {{- end }}
       containers:
       - name: kolotoc-scheduler
-        image: "{{ .Values.scheduler.image.repository }}:{{ .Values.scheduler.image.tag }}"
-        imagePullPolicy: "{{ .Values.scheduler.image.pullPolicy }}"
-        env:  
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+        env:
          - name: PROJECT_NAME
            value: "{{ .Values.projectName }}"
          - name: CUDA_STUB_LOCATION
-           value: "{{ .Values.cuda.stubs }}"             
+           value: "{{ .Values.cuda.stubs }}"
          - name: DASK_SCHEDULER_PORT
            value: "{{ .Values.scheduler.schedulerPort }}"
          - name: BOKEH_PORT
            value: "{{ .Values.scheduler.bokehPort }}"
          - name: JUPYTER_LAB_PORT
-           value: "{{ .Values.scheduler.jupyterPort }}"           
+           value: "{{ .Values.scheduler.jupyterPort }}"
          - name: TENSORBOARD_PORT
            value: "{{ .Values.scheduler.tensorboardPort }}"
          - name: HOST_SSH_PORT
-           value: "{{ .Values.ssh.port }}" 
+           value: "{{ .Values.ssh.port }}"
        {{- if .Values.scheduler.env }}
        {{- range $key, $value := .Values.scheduler.env }}
          - name: "{{ $key }}"
@@ -92,24 +92,24 @@ spec:
 {{- if .Values.volumeMounts }}
 {{ toYaml .Values.volumeMounts | indent 8 }}
 {{- end }}
-        command: 
+        command:
         - /kolotoc/generated/run.sh
         args:
-{{ toYaml .Values.scheduler.args | indent 10 }}         
+{{ toYaml .Values.scheduler.args | indent 10 }}
       initContainers:
       - name: wait-workers
-        image: "{{ .Values.scheduler.image.repository }}:{{ .Values.scheduler.image.tag }}"
-        imagePullPolicy: {{ .Values.scheduler.image.pullPolicy }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: HOST_SSH_PORT
           value: "{{ .Values.ssh.port }}"
-        {{- if .Values.scheduler.env }}            
+        {{- if .Values.scheduler.env }}
         {{- range $key, $value := .Values.scheduler.env }}
         - name: "{{ $key }}"
           value: "{{ $value }}"
         {{- end }}
         {{- end }}
-        command: 
+        command:
         - /kolotoc/generated/waitWorkersReady.sh
         args:
         - /kolotoc/generated/hostfile

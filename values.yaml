@@ -1,8 +1,12 @@
 ---
-projectName: ""
+projectName: "kolotoc"
+image:
+  repository: "nmatare/kolotoc"
+  tag: "latest"
+  pullPolicy: IfNotPresent
 
-cuda: 
-  stubs: ""
+cuda:
+  stubs: "/usr/local/cuda/targets/x86_64-linux/lib/stubs"
 
 ssh:
   port: 3222
@@ -17,22 +21,14 @@ useHostNetwork: true
 useHostPID: false
 
 scheduler:
-  schedulerPort: ""
-  bokehPort: ""
-  jupyterPort: ""
-  tensorboardPort: ""
-  image:
-    repository: ""
-    tag: ""
-    pullPolicy: IfNotPresent
+  schedulerPort: 8686
+  bokehPort: 8687
+  jupyterPort: 8889
+  tensorboardPort: 5056
 
 worker:
   number: 1
   podManagementPolicy: Parallel
-  image:
-    repository: ""
-    tag: ""
-    pullPolicy: IfNotPresent
   resources: {}
     # limits:
     #   nvidia.com/gpu: 0
@@ -42,4 +38,4 @@ worker:
     number: 1
     gpu: 0
     threads: 1
-    memory: 2GB
+    memory: "2GB"

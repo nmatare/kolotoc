@@ -68,15 +68,15 @@ spec:
 {{- end }}
       containers:
       - name: worker
-        image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
-        imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: PROJECT_NAME
           value: "{{ .Values.projectName }}"
         - name: HOST_SSH_PORT
-          value: "{{ .Values.ssh.port }}"        
+          value: "{{ .Values.ssh.port }}"
         - name: CUDA_STUB_LOCATION
-          value: "{{ .Values.cuda.stubs }}"   
+          value: "{{ .Values.cuda.stubs }}"
         - name: DASK_SCHEDULER_PORT
           value: "{{ .Values.scheduler.schedulerPort }}"
         - name: DASK_WORKER_PROCESS
@@ -111,7 +111,7 @@ spec:
         command:
         - /kolotoc/generated/run.sh
         args:
-{{ toYaml .Values.worker.args | indent 10 }}             
+{{ toYaml .Values.worker.args | indent 10 }}
         readinessProbe:
           exec:
             command:

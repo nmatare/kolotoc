@@ -5,8 +5,7 @@ set -a
 # set -vx # debug/verbose
 
 # Note (1): Another implementation
-# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/tools/\
-# dist_test/scripts_allreduce/k8s_generate_yaml_lib.py
+# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/tools/dist_test/scripts_allreduce/k8s_generate_yaml_lib.py
 function usage {
   script_name=$0
   echo "Usage:"
@@ -45,8 +44,6 @@ MINIKUBE="" # minikube; whether to run in minikube or not, debug setting
 MINIKUBE_DISK_SIZE="50GB"
 PROJECT_NAME=${PROJECT_NAME:- "kolotoc"}
 CLUSTER_NAME="$PROJECT_NAME-cluster-$(uuidgen | cut -c1-8)"
-DOCKER_REPOSITORY="nmatare/kolotoc"
-DOCKER_TAG="latest"
 ZONE="us-east1-c"
 MACHINE_TYPE="n1-standard-2"
 MACHINE_GPU_TYPE="nvidia-tesla-k80"
@@ -58,11 +55,8 @@ WORKER_RING_NAME="worker-ring"
 SCHEDULER_TYPE="n1-standard-1"
 SCHEDULER_DISK_SIZE="50"
 SCHEDULER_DISK_TYPE="pd-standard"
-DASK_SCHEDULER_PORT="8686"
-JUPYTER_LAB_PORT="8889"
-JUPYTER_NOTEBOOK_PASSWORD="kolotoc"
-TENSORBOARD_PORT="5056"
-BOKEH_PORT="8687"
+JUPYTER_NOTEBOOK_PASSWORD=${JUPYTER_NOTEBOOK_PASSWORD:- "kolotoc"}
+
 # Worker (ring-all-reduce) config
 # We don't set --nprocs so that we can name the individaul workers and follow
 # best-practices: https://github.com/dask/distributed/issues/2471
@@ -72,9 +66,6 @@ BOKEH_PORT="8687"
 DASK_WORKER_PROCESS="" # number of dask-workers per "worker" node, defaults to number of CPUs if blank
 DASK_THREADS_PER_PROCESS="1"
 DASK_WORKER_GPU="0"
-CUDA_VERSION="10.0"
-OPEN_MPI_SSH_PORT="3222"
-CUDA_STUB_LOCATION="/usr/local/cuda/targets/x86_64-linux/lib/stubs"
 DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES="100" # number of times a task can fail before killed by scheduler
 DASK_DISTRIBUTED__WORKER__MEMORY__SPILL="0.85"
 DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE="0.90"
@@ -293,6 +284,10 @@ chmod 400 $TEMP_DIR/id_rsa
 cat << EOF > "$TEMP_DIR/configuration.yaml"
 ---
 projectName: "$PROJECT_NAME"
+image:
+  repository: $DOCKER_REPOSITORY
+  tag: $DOCKER_TAG
+
 cuda:
   stubs: "$CUDA_STUB_LOCATION"
 ssh:
@@ -303,19 +298,12 @@ $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
   hostKeyPub: |-
 $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
+
+
 useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
   echo "true"; else echo "false"; fi)
 
 scheduler:
-  schedulerPort: $DASK_SCHEDULER_PORT
-  bokehPort: $BOKEH_PORT
-  jupyterPort: $JUPYTER_LAB_PORT
-  tensorboardPort: $TENSORBOARD_PORT
-
-  image:
-    repository: $DOCKER_REPOSITORY
-    tag: $DOCKER_TAG
-
   env:
     GIT_SSH_COMMAND: "ssh -p 22 -i /root/$PROJECT_NAME/build.key -o StrictHostKeyChecking=no"
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES
@@ -326,9 +314,6 @@ scheduler:
 worker:
   number: $NUM_WORKER_NODES
   podManagementPolicy: Parallel
-  image:
-    repository: $DOCKER_REPOSITORY
-    tag: $DOCKER_TAG
 
   resources:
     limits:
