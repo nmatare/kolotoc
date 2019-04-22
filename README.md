@@ -4,12 +4,13 @@
   - [Horovod](https://eng.uber.com/horovod/), a distributed framework for training models; and
   - [Dask](https://dask.org/), a framework for distributed analytics at scale.
 
-  [Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each worker node (statefulset) is of rank-0 to rank-n (where n is the total number of worker nodes). Each worker node is assigned to one or more [dask-workers](https://distributed.dask.org/en/latest/worker.html). The default number of dask-workers per worker node is given by the number of logical cores per worker node. Kolotoc also creates a scheduler node outside of the computational ring as a Kubernetes deployment. The scheduler node serves as the entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
+  [Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each worker node (statefulset) is of rank-0 to rank-n (where n is the total number of worker nodes). Each worker node is assigned to one or more [dask-workers](https://distributed.dask.org/en/latest/worker.html). The default number of dask-workers per worker node is given by the number of logical cores per worker node. Kolotoc also creates a scheduler node outside of the computational ring as a Kubernetes deployment. The scheduler node serves as an entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
 
 ## Prerequisites
 
 - Kubernetes cluster v1.8+
 - jq 1.5-1
+- Google Cloud SDK 236.0.0
 
 ## Quick deployment on Google Cloud
 
@@ -51,6 +52,8 @@ Once inside the scheduler node, type run `goto 0` to navigate to worker node ran
 If each worker-node has been loaded with a Git repository (via a custom Dockerfile), run `update` (no parameters) to pull the latest repository on each worker node.
 
 ## Manual deployment
+Only read past this section if you __do not__ want to use the `cluster.sh` utility script.
+
 ### Build Docker Image
 
 The official Horovod Dockerfile is unsupported due to its incompatability with the Dask Dockerfile. Please use the Dockerfile provided in the base of this image as a starting point:

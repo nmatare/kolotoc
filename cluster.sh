@@ -17,7 +17,7 @@ function usage {
   echo "               [--node-disk-size machine_disk_size] [--help]"
   echo ""
   echo "  Parameters: "
-  echo "    cluster_name:             name of the kubernetes cluster. "
+  echo "    cluster_name:             name of the Kubernetes cluster. "
   echo "                              (default: kolotoc-cluster-uuid)"
   echo "    service_file:             the file path to the Google Cloud  "
   echo "                              service account credential. "
