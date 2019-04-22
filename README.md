@@ -10,13 +10,9 @@
   <img src="https://user-images.githubusercontent.com/16640218/34506318-84d0c06c-efe0-11e7-8831-0425772ed8f2.png" width="150" height="150" align="left" style="margin-right: 20px;" >
   Horovod is a distributed training framework for TensorFlow, Keras, PyTorch, and MXNet. The goal of Horovod is to make distributed Deep Learning fast and easy to use.
 
-  <!-- <br style = "line-height:10;"><br> -->
-  <br/>
-  <br/>
-  <br/>
-  <br/>
-  <br/>
-  <br/>
+  <br style = "line-height:10;"><br>
+
+
 
   <img src="https://dask.org/_images/dask_horizontal_white_no_pad.svg" width="150" height="100" align="left" style="margin-right: 20px;" >
 
