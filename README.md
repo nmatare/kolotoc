@@ -10,7 +10,7 @@
   <img src="https://user-images.githubusercontent.com/16640218/34506318-84d0c06c-efe0-11e7-8831-0425772ed8f2.png" width="150" height="150" align="left" style="margin-right: 20px;" >
   Horovod is a distributed training framework for TensorFlow, Keras, PyTorch, and MXNet. The goal of Horovod is to make distributed Deep Learning fast and easy to use.
 
-  <br style = "line-height:6;"><br>
+  <br style = "line-height:10;"><br>
 
   <img src="https://dask.org/_images/dask_horizontal_white_no_pad.svg" width="150" height="100" align="left" style="margin-right: 20px;" >
 
@@ -151,8 +151,7 @@ the respective default values.
 | `worker.number`  | The number of worker-nodes    | `1` |
 | `worker.env` | Worker environment variables | `{}` |
 | `worker.podManagementPolicy`  | Worker-node policy    | `Parallel` |
-| `worker.resources.limits.nvidia.com/gpu`  | Number of total attached GPUs   | `false` |
-| `worker.resources.requests.nvidia.com/gpu`  | Number of requested attached GPUs    | `false` |
+| `worker.resources`  | The number of available GPUs   | `{}` |
 | `worker.dask.number`  | The number of dask-workers per worker-node    | `1` |
 | `worker.dask.gpu`  | The number of GPUs dask-workers can access    | `0` |
 | `worker.dask.threads`  | The number of threads per dask-worker    | `1` |
@@ -164,16 +163,16 @@ the respective default values.
 $ helm install --values ~/values.yaml nmatare/kolotoc
 ```
 
-## Misc
+## Nice-to-have future features
+
+  - [ ] Build [MPI-ULFM2](http://fault-tolerance.org/) into the Dockerfile to support fault tolerance;
+  - [ ] Add the ability to scale up/down the cluster based upon workload; and
+  - [ ] Refactor `cluster.sh` into a program that supports multiple cloud providers.
+
+## Miscellaneous
 
 This chart is based off [stable/horovod](https://github.com/helm/charts/tree/master/stable/horovod)
 created by cheyang.
 
 What's a kolotoc?
 A [czech carousel](https://sk.wikipedia.org/wiki/Koloto%C4%8D) not unlike the Russian horovod dance.
-
-## Nice-to-have future features
-
-  - [ ] Build [MPI-ULFM2](http://fault-tolerance.org/) to support fault tolerance;
-  - [ ] Add the ability to scale up/down the cluster based upon workload;
-  - [ ] Refactor `cluster.sh` into a program that supports multiple cloud providers;
