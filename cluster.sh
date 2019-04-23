@@ -288,14 +288,9 @@ image:
   repository: $DOCKER_REPOSITORY
   tag: $DOCKER_TAG
 
-cuda:
-  stubs: "$CUDA_STUB_LOCATION"
-ssh:
-  port: "$OPEN_MPI_SSH_PORT"
-
-  hostKey: |-
+hostKey: |-
 $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
-  hostKeyPub: |-
+hostKeyPub: |-
 $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
 useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
@@ -356,9 +351,7 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm del --purge "$CLUSTER_NAME"
 fi
 
-helm install nmatare/kolotoc-1.0.2.tgz --name "$CLUSTER_NAME" \
-  --values "$TEMP_DIR/configuration.yaml"
-
+helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
 # Note (1): This __MUST__ be done after helm install othwerise charts
 # will fail to bind due to taints/tolerations.
 kubectl taint nodes \
