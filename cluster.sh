@@ -356,8 +356,7 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm del --purge "$CLUSTER_NAME"
 fi
 
-helm repo add kolotoc https://github.com/nmatare/kolotoc
-helm install nmatare/kolotoc --name "$CLUSTER_NAME" \
+helm install nmatare/kolotoc-1.0.2.tgz --name "$CLUSTER_NAME" \
   --values "$TEMP_DIR/configuration.yaml"
 
 # Note (1): This __MUST__ be done after helm install othwerise charts
