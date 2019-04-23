@@ -274,10 +274,11 @@ image:
   repository: $DOCKER_REPOSITORY
   tag: $DOCKER_TAG
 
-hostKey: |-
-$(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
-hostKeyPub: |-
-$(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
+ssh:
+  hostKey: |-
+  $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
+  hostKeyPub: |-
+  $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
 useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
   echo "true"; else echo "false"; fi)

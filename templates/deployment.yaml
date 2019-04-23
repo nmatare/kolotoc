@@ -77,10 +77,8 @@ spec:
            value: "{{ $value }}"
        {{- end }}
        {{- end }}
-{{- if .Values.scheduler.privileged }}
         securityContext:
           privileged: true
-{{- end }}
         ports:
         - containerPort: {{ .Values.ssh.port }}
         volumeMounts:

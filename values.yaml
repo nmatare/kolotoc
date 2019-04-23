@@ -21,8 +21,8 @@ useHostNetwork: true
 useHostPID: false
 
 scheduler:
-  schedulerPort: 8686
-  bokehPort: 8687
+  schedulerPort: "8686"
+  bokehPort: "8687"
   jupyterPort: 8889
   tensorboardPort: 5056
 
