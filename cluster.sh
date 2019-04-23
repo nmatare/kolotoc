@@ -21,10 +21,6 @@ function usage {
   echo "                              (default: kolotoc-cluster-uuid)"
   echo "    service_file:             the file path to the Google Cloud  "
   echo "                              service account credential. "
-  echo "    docker_repository:        the location of the base Dockerfile "
-  echo "                              image. (default: nmatare/kolotoc)"
-  echo "    docker_tag:               the tag of the base Dockerfile image.  "
-  echo "                              (default: latest)"
   echo "    num_of_workers:           number of worker nodes to launch."
   echo "    scheduler_type:           the google cloud machine type for scheduler. "
   echo "    node_type:                the google cloud machine type for workers. "
@@ -55,7 +51,7 @@ WORKER_RING_NAME="worker-ring"
 SCHEDULER_TYPE="n1-standard-1"
 SCHEDULER_DISK_SIZE="50"
 SCHEDULER_DISK_TYPE="pd-standard"
-JUPYTER_NOTEBOOK_PASSWORD=${JUPYTER_NOTEBOOK_PASSWORD:- "kolotoc"}
+JUPYTER_NOTEBOOK_PASSWORD=${JUPYTER_NOTEBOOK_PASSWORD:-"kolotoc"}
 
 # Worker (ring-all-reduce) config
 # We don't set --nprocs so that we can name the individaul workers and follow
@@ -110,14 +106,6 @@ setargs(){
       "--service-file")
         shift
         SERVICE_FILE=$1
-        ;;
-      "--repository")
-        shift
-        DOCKER_REPOSITORY=$1
-        ;;
-      "--tag")
-        shift
-        DOCKER_TAG=$1
         ;;
       "--num-worker-nodes")
         shift
@@ -273,10 +261,8 @@ export DASK_WORKER_MEM=$(python -c "import os; \
   float(os.environ['DASK_WORKER_PROCESS']))")
 
 export UPDATE_REPO_COMMAND='
-  bash -c "git fetch --all && \
-    git reset --hard origin/master && \
-    chmod 600 build.key && \
-    git pull origin master'
+  bash -c "git fetch --all && reset --hard origin/master && chmod 600 build.key && \
+           git pull origin master'
 
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
 chmod 400 $TEMP_DIR/id_rsa
@@ -369,33 +355,33 @@ export SCHEDULER_POD=$(waitfor kubectl get pods -l \
 kubectl expose pod "$SCHEDULER_POD" \
   --name="jupyter-lab" \
   --type="NodePort" \
-  --port="$JUPYTER_LAB_PORT" \
-  --target-port="$JUPYTER_LAB_PORT"
+  --port="8889" \
+  --target-port="8889"
 
 # Expose Dask-Bokeh notebook service
 kubectl expose pod "$SCHEDULER_POD" \
   --name="dask-bokeh" \
   --type="NodePort" \
-  --port="$BOKEH_PORT" \
-  --target-port="$BOKEH_PORT"
+  --port="8687" \
+  --target-port="8687"
 
 # Expose Tensorboard service
 kubectl expose pod "$SCHEDULER_POD" \
   --name="tensorboard" \
   --type="NodePort" \
-  --port="$TENSORBOARD_PORT" \
-  --target-port="$TENSORBOARD_PORT"
+  --port="5056" \
+  --target-port="5056"
 
 # Output to user console
-printf "${GREEN}Jupyter notebook: https://127.0.0.1:$JUPYTER_LAB_PORT ${OFF}\n"
-printf "${RED}Password: $JUPYTER_NOTEBOOK_PASSWORD ${OFF}\n"
+printf "${GREEN}Jupyter notebook: https://127.0.0.1:8889 ${OFF}\n"
+printf "${RED}Password:$JUPYTER_NOTEBOOK_PASSWORD ${OFF}\n"
 
-printf "${GREEN}Bokeh dashboard: http://127.0.0.1:$BOKEH_PORT/status ${OFF}\n"
-printf "${GREEN}Tensorboard: http://127.0.0.1:$TENSORBOARD_PORT ${OFF}\n"
+printf "${GREEN}Bokeh dashboard: http://127.0.0.1:8687/status ${OFF}\n"
+printf "${GREEN}Tensorboard: http://127.0.0.1:5056 ${OFF}\n"
 
 printf "${GREEN}Port-forward: \
-'kubectl port-forward $SCHEDULER_POD $JUPYTER_LAB_PORT $BOKEH_PORT \
-$TENSORBOARD_PORT' Use 'pkill kubectl -9' to kill. ${OFF}\n"
+'kubectl port-forward $SCHEDULER_POD 8889 8687 \
+5056' Use 'pkill kubectl -9' to kill. ${OFF}\n"
 
 printf "${GREEN}Access entrypoint: \
 'kubectl exec $SCHEDULER_POD -it bash' ${OFF}\n"
@@ -403,9 +389,9 @@ printf "${GREEN}Access entrypoint: \
 printf "${GREEN}Stream logs: \
 'kubectl logs $SCHEDULER_POD -f' ${OFF}\n"
 
-printf "${GREEN}Copy trials/checkpoints: \
-'kubectl cp default/$SCHEDULER_POD:/root/deeptick/checkpoints \
-$PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
+# printf "${GREEN}Copy trials/checkpoints: \
+# 'kubectl cp default/$SCHEDULER_POD:/root/$PROJECT_NAME/checkpoints \
+# $PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
 
 echo "$JUPYTER_NOTEBOOK_PASSWORD" | xclip -sel clip
 pkill kubectl -9 # kill any previous instances
@@ -418,7 +404,7 @@ pkill kubectl -9 # kill any previous instances
 
 # Will fail on heavy loads
 # $(waitfor kubectl port-forward $SCHEDULER_POD \
-#   $JUPYTER_LAB_PORT $BOKEH_PORT $TENSORBOARD_PORT &>/dev/null &)
+#   8889 8687 5056 &>/dev/null &)
 
 kubectl exec "$SCHEDULER_POD" -it bash
 

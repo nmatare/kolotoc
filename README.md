@@ -26,8 +26,6 @@
 |-----------|-------------|---------|
 | `cluster-name`  | name of the Kubernetes cluster  | `kolotoc-cluster-uuid` |
 | `service-file`  | the file path to the Google Cloud  service account credential    | Required |
-| `docker-repository`  | the location of the base Dockerfile image    | `nmatare/kolotoc` |
-| `docker-tag`  | the tag of the base Dockerfile image    | `latest` |
 | `num-worker-nodes`  | number of worker nodes to launch    | Required |
 | `node-type`  | the google cloud machine type for worker nodes    | Required |
 | `scheduler-type`  | the google cloud machine type for the scheduler    | `n1-standard-1` |
