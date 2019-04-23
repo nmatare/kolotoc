@@ -298,8 +298,6 @@ $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
   hostKeyPub: |-
 $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
-
-
 useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
   echo "true"; else echo "false"; fi)
 
@@ -358,7 +356,7 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm del --purge "$CLUSTER_NAME"
 fi
 
-helmc repo add kolotoc https://github.com/nmatare/kolotoc
+helm repo add kolotoc https://github.com/nmatare/kolotoc
 helm install nmatare/kolotoc --name "$CLUSTER_NAME" \
   --values "$TEMP_DIR/configuration.yaml"
 
