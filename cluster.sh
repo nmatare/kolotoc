@@ -261,7 +261,7 @@ export DASK_WORKER_MEM=$(python -c "import os; \
   float(os.environ['DASK_WORKER_PROCESS']))")
 
 export UPDATE_REPO_COMMAND='
-  bash -c "git fetch --all && reset --hard origin/master && chmod 600 build.key && \
+  bash -c "git fetch --all && git reset --hard origin/master && chmod 600 build.key && \
            git pull origin master'
 
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
@@ -276,9 +276,9 @@ image:
 
 ssh:
   hostKey: |-
-  $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
+$(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
   hostKeyPub: |-
-  $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
+$(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
 useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
   echo "true"; else echo "false"; fi)
@@ -375,7 +375,7 @@ kubectl expose pod "$SCHEDULER_POD" \
 
 # Output to user console
 printf "${GREEN}Jupyter notebook: https://127.0.0.1:8889 ${OFF}\n"
-printf "${RED}Password:$JUPYTER_NOTEBOOK_PASSWORD ${OFF}\n"
+printf "${RED}Password: $JUPYTER_NOTEBOOK_PASSWORD ${OFF}\n"
 
 printf "${GREEN}Bokeh dashboard: http://127.0.0.1:8687/status ${OFF}\n"
 printf "${GREEN}Tensorboard: http://127.0.0.1:5056 ${OFF}\n"
