@@ -11,7 +11,7 @@ function usage {
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] [--num-worker-nodes num_of_workers]"
   echo "               [--service-file service_file] [--docker-repository docker_repository]"
-  echo "               [--docker-tag docker_tag] [--node-gpus machine_gpus]"
+  echo "               [--docker-tag docker_tag] [--node-gpus node_gpus]"
   echo "               [--node-type machine_type] [--scheduler-type]"
   echo "               [--dask-workers-per-node] [--dask-threads-per-worker]"
   echo "               [--node-disk-size machine_disk_size] [--help]"
@@ -63,7 +63,7 @@ DASK_WORKER_PROCESS="" # number of dask-workers per "worker" node, defaults to n
 DASK_THREADS_PER_PROCESS="1"
 DASK_WORKER_GPU="0"
 DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES="100" # number of times a task can fail before killed by scheduler
-DASK_DISTRIBUTED__WORKER__MEMORY__SPILL="0.85"
+DASK_DISTRIBUTED__WORKER__MEMORY__SPILL="0.75"
 DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE="0.90"
 DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE="1"
 
