@@ -183,7 +183,7 @@ data:
     /usr/sbin/sshd
 
     export DASK_SCHEDULER_ADDRESS="$(head -n 1 /kolotoc/generated/hostfile | cut -d ' ' -f1)"
-    retry 30 ssh -o ConnectTimeout=10 -q $DASK_SCHEDULER_ADDRESS exit
+    # retry 30 ssh -o ConnectTimeout=10 -q $DASK_SCHEDULER_ADDRESS exit
 
     if [[ "$DASK_WORKER_GPU" -gt 0 ]]; then
       export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
