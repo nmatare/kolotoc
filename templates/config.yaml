@@ -60,9 +60,7 @@ data:
       mpiexec --allow-run-as-root \
       --mca orte_keep_fqdn_hostnames t \
       --timeout 30 \
-      --hostfile /kolotoc/generated/hostfile /bin/bash -c " \
-      git fetch --all && git reset --hard origin/master && \
-      chmod 600 build.key && git pull origin master"
+      --hostfile /kolotoc/generated/hostfile $UPDATE_REPO_COMMAND
     }
 
     function goto(){
