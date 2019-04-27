@@ -45,8 +45,8 @@ data:
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     /usr/sbin/sshd
 
-    source activate "$PROJECT_NAME"
-    ldconfig "$CUDA_STUB_LOCATION"
+    source activate $PROJECT_NAME
+    ldconfig $CUDA_STUB_LOCATION
     echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
 
     jupyter lab --allow-root --port=$JUPYTER_LAB_PORT &
@@ -145,7 +145,6 @@ data:
 
   worker.run: |
     #!/bin/bash
-
     function retry() {
         local n=0;local try=$1
         local cmd="${@: 2}"
@@ -195,13 +194,13 @@ data:
       echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> /etc/environment
       sed -i "/\<PATH\>/cPATH=$PATH" /etc/environment
     else 
-      ldconfig "$CUDA_STUB_LOCATION"
+      ldconfig $CUDA_STUB_LOCATION
     fi
 
     echo "DASK_SCHEDULER_ADDRESS=${DASK_SCHEDULER_ADDRESS}" >> /etc/environment
     echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
 
-    source activate "$PROJECT_NAME"
+    source activate $PROJECT_NAME
     for worker in $(seq 1 "$DASK_WORKER_PROCESS"); do 
       echo "Launching dask-worker process $worker of $DASK_WORKER_PROCESS"
       dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \

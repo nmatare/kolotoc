@@ -52,7 +52,7 @@ SCHEDULER_TYPE="n1-standard-1"
 SCHEDULER_DISK_SIZE="50"
 SCHEDULER_DISK_TYPE="pd-standard"
 JUPYTER_NOTEBOOK_PASSWORD=${JUPYTER_NOTEBOOK_PASSWORD:-"kolotoc"}
-
+BUILD_KEY_LOCATION=/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key 
 # Worker (ring-all-reduce) config
 # We don't set --nprocs so that we can name the individaul workers and follow
 # best-practices: https://github.com/dask/distributed/issues/2471
@@ -261,8 +261,8 @@ export DASK_WORKER_MEM=$(python -c "import os; \
   float(os.environ['DASK_WORKER_PROCESS']))")
 
 export UPDATE_REPO_COMMAND='
-  bash -c "git fetch --all && git reset --hard origin/master && chmod 600 build.key && \
-           git pull origin master'
+  bash -c "git fetch --all && git reset --hard origin/master && chmod 600
+  $BUILD_KEY_LOCATION && git pull origin master"'
 
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
 chmod 400 $TEMP_DIR/id_rsa
@@ -285,7 +285,7 @@ useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
 
 scheduler:
   env:
-    GIT_SSH_COMMAND: "ssh -p 22 -i /root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key -o StrictHostKeyChecking=no"
+    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES
     DASK_DISTRIBUTED__WORKER__MEMORY__SPILL: $DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
     DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
@@ -308,7 +308,7 @@ worker:
     threads: $DASK_THREADS_PER_PROCESS
 
   env:
-    GIT_SSH_COMMAND: "ssh -p 22 -i /root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key -o StrictHostKeyChecking=no"
+    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES
     DASK_DISTRIBUTED__WORKER__MEMORY__SPILL: $DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
     DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
