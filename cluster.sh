@@ -261,8 +261,9 @@ export DASK_WORKER_MEM=$(python -c "import os; \
   float(os.environ['DASK_WORKER_PROCESS']))")
 
 export UPDATE_REPO_COMMAND="/bin/bash -c \"git fetch --all && \
-  git reset --hard origin/master && chmod 600
-  $BUILD_KEY_LOCATION && git pull origin master\""
+  git reset --hard origin/master && \
+  chmod 600 $BUILD_KEY_LOCATION && \
+  git pull origin master\""
 
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
 chmod 400 $TEMP_DIR/id_rsa
@@ -285,7 +286,7 @@ useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
 
 scheduler:
   env:
-    UPDATE_REPO_COMMAND: $UPDATE_REPO_COMMAND
+    UPDATE_REPO_COMMAND: "$UPDATE_REPO_COMMAND"
     GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES
     DASK_DISTRIBUTED__WORKER__MEMORY__SPILL: $DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
