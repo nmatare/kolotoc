@@ -60,7 +60,8 @@ data:
       mpiexec --allow-run-as-root \
       --mca orte_keep_fqdn_hostnames t \
       --timeout 30 \
-      --hostfile /kolotoc/generated/hostfile /bin/bash -c \"$UPDATE_REPO_COMMAND\"
+      --hostfile /kolotoc/generated/hostfile \
+        /bin/bash -c \""{$UPDATE_REPO_COMMAN}"\"
     }
 
     function goto(){
@@ -181,8 +182,6 @@ data:
     sed -i "s/^Port.*/Port $HOST_SSH_PORT /g" /etc/ssh/sshd_config
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     /usr/sbin/sshd
-
-    echo "$HOST_SSH_PORT"
 
     export DASK_SCHEDULER_ADDRESS="$(head -n 1 /kolotoc/generated/hostfile | cut -d ' ' -f1)"
     retry 30 ssh -o ConnectTimeout=10 -q $DASK_SCHEDULER_ADDRESS exit

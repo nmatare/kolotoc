@@ -95,12 +95,12 @@ RUN apt-get update && apt-get install -y \
  libtool \
  flex
 
-# Install Open-MPI-3.1.2
+# Install Open-MPI-4.0.0
 RUN mkdir /tmp/openmpi && \
   cd /tmp/openmpi && \
-  wget https://www.open-mpi.org/software/ompi/v3.1/downloads/openmpi-3.1.2.tar.gz && \
-  tar zxf openmpi-3.1.2.tar.gz && \
-  cd openmpi-3.1.2 && \
+  wget https://www.open-mpi.org/software/ompi/v4.0/downloads/openmpi-4.0.0.tar.gz && \
+  tar zxf openmpi-4.0.0.tar.gz && \
+  cd openmpi-4.0.0 && \
   ./configure --enable-orterun-prefix-by-default && \
   make -j $(nproc) all && \
   make install && \
@@ -134,4 +134,5 @@ RUN pip install tensorflow-gpu && \
   HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_WITH_TENSORFLOW=1 pip install horovod --no-cache-dir && \
   ldconfig
 
+RUN mkdir -p /scratch
 WORKDIR /root
