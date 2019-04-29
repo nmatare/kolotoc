@@ -61,7 +61,7 @@ data:
       --mca orte_keep_fqdn_hostnames t \
       --timeout 30 \
       --hostfile /kolotoc/generated/hostfile \
-        /bin/bash -c \"$UPDATE_REPO_COMMAND\"
+        /bin/bash -c "$UPDATE_REPO_COMMAND"
     }
 
     function goto(){
