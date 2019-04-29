@@ -13,6 +13,7 @@
 #     installed into different directories. Conda is used hereinafter.
 
 # Install nvidia-docker image and set configuration details
+FROM daskdev/dask-notebook:latest AS dask
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 LABEL maintainer "Nathan Matare <nathan.matare@gmail.com>"
 ENV NB_USER='jovyan'\
@@ -57,7 +58,6 @@ RUN echo NCCL_DEBUG=DEBUG >> /etc/nccl.conf && \
 # Unlike 'FROM daskdev/dask-notebook' which copies environment variables,
 # 'COPY --from=daskdev/dask-notebook' does not, so these must be set.
 # https://github.com/moby/moby/issues/34482
-FROM daskdev/dask-notebook:latest AS dask
 COPY --from=dask \
   /home /opt /usr/local/bin/*.sh /usr/local/bin/fix-permissions \
   /usr/bin/*.sh /etc/jupyter /etc/passwd /etc/shadow /etc/group \
