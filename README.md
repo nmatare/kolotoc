@@ -41,6 +41,8 @@
   * JupyterLab
   * Dask Web User Interface
 
+![kolotoc entrypoint](docs/entrypoint.png)
+
 Use your local browser to view each application. The default password for JupyterLab is `kolotoc`
 
 You may also interact with the cluster via the printed ```kubectl exec ... -it /bin/bash``` command. Running the command will connect you to the scheduler node.

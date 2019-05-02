@@ -21,7 +21,7 @@ function usage {
   echo "                              (default: kolotoc-cluster-uuid)"
   echo "    service_file:             the file path to the Google Cloud  "
   echo "                              service account credential. "
-  echo "    num_of_workers:           number of worker nodes to launch."
+  echo "    num_worker_nodes:         number of worker nodes to launch."
   echo "    scheduler_type:           the google cloud machine type for scheduler. "
   echo "    node_type:                the google cloud machine type for workers. "
   echo "    node_gpus:                the number of attached gpus. (default: 0)"
