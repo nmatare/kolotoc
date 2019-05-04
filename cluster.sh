@@ -288,7 +288,7 @@ worker:
   number: $NUM_WORKER_NODES
   podManagementPolicy: Parallel
 
- resources:
+  resources:
     limits:
       nvidia.com/gpu: $MACHINE_GPUS
     requests:
