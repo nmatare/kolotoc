@@ -61,6 +61,10 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 # https://github.com/dask/dask/blob/master/docs/source/configuration.rst
 DASK_WORKER_PROCESS="" # number of dask-workers per "worker" node, defaults to number of CPUs if blank
 DASK_THREADS_PER_PROCESS="1"
+DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES="100" # number of times a task can fail before killed by scheduler	
+DASK_DISTRIBUTED__WORKER__MEMORY__SPILL=0.50	
+DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE=0.85	
+DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE=1
 
 export TEMP_DIR=`mktemp -d`
 declare -A AVAL_MACHINE_TYPES=(
@@ -302,6 +306,10 @@ worker:
 
   env:
     GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
+    DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
+    DASK_DISTRIBUTED__WORKER__MEMORY__SPILL: $DASK_DISTRIBUTED__WORKER__MEMORY__SPILL	
+    DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE	
+    DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
 EOF
 
 kubectl --namespace kube-system create serviceaccount tiller
