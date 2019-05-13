@@ -16,7 +16,7 @@ metadata:
     app: {{ template "kolotoc.fullname" . }}
 data:
   hostfile.config: |
-    {{ $name }}-scheduler slots={{ $slots }}
+    {{ $name }}-scheduler slots=0
     {{- range $i, $none := until (int $workerNum) }}
     {{ $name }}-{{ $i }}.{{ $name }} slots={{ $slots }}
     {{- end }}
