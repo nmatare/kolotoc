@@ -43,13 +43,13 @@ CLUSTER_NAME="$PROJECT_NAME-cluster-$(uuidgen | cut -c1-8)"
 ZONE="us-east1-c"
 MACHINE_TYPE="n1-standard-2"
 MACHINE_GPU_TYPE="nvidia-tesla-k80"
-MACHINE_GPUS="0"
-MACHINE_DISK_SIZE="50"
-NUM_WORKER_NODES="1"
+MACHINE_GPUS=0
+MACHINE_DISK_SIZE=50
+NUM_WORKER_NODES=1
 ENTRY_POINT_NAME="scheduler" # Scheduler (entrypoint) config
 WORKER_RING_NAME="worker-ring"
 SCHEDULER_TYPE="n1-standard-2"
-SCHEDULER_DISK_SIZE="50"
+SCHEDULER_DISK_SIZE=50
 SCHEDULER_DISK_TYPE="pd-standard"
 JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-'kolotoc'}"
 BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
@@ -60,11 +60,17 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 # Each CPU on the node will get one dask-worker running one thread
 # https://github.com/dask/dask/blob/master/docs/source/configuration.rst
 DASK_WORKER_PROCESS="" # number of dask-workers per "worker" node, defaults to number of CPUs if blank
-DASK_THREADS_PER_PROCESS="1"
-DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES="100" # number of times a task can fail before killed by scheduler	
-DASK_DISTRIBUTED__WORKER__MEMORY__SPILL=0.50	
-DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE=0.85	
+DASK_THREADS_PER_PROCESS=1
+# number of times a task can fail before killed by scheduler	
+DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES=100
+# unlike spill/pause/target, terminate is set on the nanny and, currently,
+# there is no easy way to adjust parameters on the nanny. We hard-code this 
+# here, and expect the user to adjust the other parameters via direct calls
+# to the workers. This is likewise true for `timeout`, which is set in the 
+# dask_config_parameters
 DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE=1
+DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=300
+DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=420
 
 export TEMP_DIR=`mktemp -d`
 declare -A AVAL_MACHINE_TYPES=(
@@ -287,6 +293,8 @@ scheduler:
   env:
     UPDATE_REPO_COMMAND: $UPDATE_REPO_COMMAND
     GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
+    DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
+    DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
 
 worker:
   number: $NUM_WORKER_NODES
@@ -307,9 +315,9 @@ worker:
   env:
     GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
-    DASK_DISTRIBUTED__WORKER__MEMORY__SPILL: $DASK_DISTRIBUTED__WORKER__MEMORY__SPILL	
-    DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE	
     DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
+    DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
+    DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
 EOF
 
 kubectl --namespace kube-system create serviceaccount tiller
