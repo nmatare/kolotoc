@@ -48,6 +48,7 @@ data:
     source activate $PROJECT_NAME
     ldconfig $CUDA_STUB_LOCATION
     echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
+    echo "UPDATE_REPO_COMMAND=${UPDATE_REPO_COMMAND}" >> etc/environment
 
     jupyter lab --allow-root --port=$JUPYTER_LAB_PORT &
     
@@ -61,7 +62,7 @@ data:
       --mca orte_keep_fqdn_hostnames t \
       --timeout 30 \
       --hostfile /kolotoc/generated/hostfile \
-        /bin/bash -c "$UPDATE_REPO_COMMAND"
+        /bin/bash -c "${UPDATE_REPO_COMMAND}"
     }
 
     function goto(){
