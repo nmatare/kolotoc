@@ -50,6 +50,12 @@ data:
     echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
     echo "UPDATE_REPO_COMMAND=${UPDATE_REPO_COMMAND}" >> /etc/environment
 
+    $CONDA_PREFIX/envs/$PROJECT_NAME/bin/python -m ipykernel install --user \
+        --name $PROJECT_NAME  --display-name "$PROJECT_NAME-python" 
+
+    'IRkernel::installspec(user=FALSE, displayname="R$PROJECT_NAME")' | \
+    $CONDA_PREFIX/envs/$PROJECT_NAME/bin/R --slave  
+
     jupyter lab --allow-root --port=$JUPYTER_LAB_PORT &
     
     tensorboard --port=$TENSORBOARD_PORT \
