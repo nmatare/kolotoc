@@ -53,7 +53,7 @@ data:
     $CONDA_PREFIX/bin/python -m ipykernel install --user \
         --name $PROJECT_NAME  --display-name "$PROJECT_NAME-python" 
 
-    echo 'IRkernel::installspec(user=FALSE, displayname="R$PROJECT_NAME")' | \
+    echo "IRkernel::installspec(user=FALSE, displayname=/"R$PROJECT_NAME/")" | \
     $CONDA_PREFIX/bin/R --slave  
 
     jupyter lab --allow-root --port=$JUPYTER_LAB_PORT &
@@ -68,7 +68,7 @@ data:
       --mca orte_keep_fqdn_hostnames t \
       --timeout 30 \
       --hostfile /kolotoc/generated/hostfile \
-        /bin/bash -c "${UPDATE_REPO_COMMAND}"
+        /bin/bash -c "$UPDATE_REPO_COMMAND"
     }
 
     function goto(){
