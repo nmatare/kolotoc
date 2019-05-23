@@ -51,7 +51,7 @@ data:
     echo "UPDATE_REPO_COMMAND=${UPDATE_REPO_COMMAND}" >> /etc/environment
 
     $CONDA_PREFIX/bin/python -m ipykernel install --user \
-        --name $PROJECT_NAME  --display-name "$PROJECT_NAME-python" 
+        --name $PROJECT_NAME  --display-name "P$PROJECT_NAME" 
 
     echo "IRkernel::installspec(user=FALSE, displayname='R$PROJECT_NAME')" | \
     $CONDA_PREFIX/bin/R --slave  
@@ -64,6 +64,7 @@ data:
     dask-scheduler --port=$DASK_SCHEDULER_PORT --bokeh-port=$BOKEH_PORT &
 
     function update(){
+      eval $UPDATE_REPO_COMMAND
       mpiexec --allow-run-as-root \
       --mca orte_keep_fqdn_hostnames t \
       --timeout 30 \
