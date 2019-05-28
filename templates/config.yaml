@@ -61,7 +61,8 @@ data:
     tensorboard --port=$TENSORBOARD_PORT \
       --logdir=/root/$PROJECT_NAME/checkpoints/ &
    
-    dask-scheduler --port=$DASK_SCHEDULER_PORT \
+    dask-scheduler --host "*" \
+      --port=$DASK_SCHEDULER_PORT \
       --scheduler-address=$BOKEH_PORT &
 
     function update(){
