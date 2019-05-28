@@ -395,23 +395,11 @@ printf "${GREEN}Access entrypoint: \
 printf "${GREEN}Stream logs: \
 'kubectl logs $SCHEDULER_POD -f' ${OFF}\n"
 
-# printf "${GREEN}Copy trials/checkpoints: \
-# 'kubectl cp default/$SCHEDULER_POD:/root/$PROJECT_NAME/checkpoints \
-# $PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
+printf "${GREEN}Copy trials/checkpoints: \
+ 'kubectl cp default/$SCHEDULER_POD:/root/$PROJECT_NAME/checkpoints \
+ $PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
 
-echo "$JUPYTER_NOTEBOOK_PASSWORD" | xclip -sel clip
 pkill kubectl -9 # kill any previous instances
-
-# Copy checkpoints and meta-data back into local
-# printf "Copying checkpoints in the background to \
-#   $PROJECT_DIR/trials/$CLUSTER_NAME \n"
-# (watch kubectl cp default/$SCHEDULER_POD:/root/deeptick/checkpoints \
-#   $PROJECT_DIR/trials/$CLUSTER_NAME &>/dev/null &)
-
-# Will fail on heavy loads
-# $(waitfor kubectl port-forward $SCHEDULER_POD \
-#   8889 8687 5056 &>/dev/null &)
-
 kubectl exec "$SCHEDULER_POD" -it bash
 
 # EOF
