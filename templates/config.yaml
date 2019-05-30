@@ -56,11 +56,11 @@ data:
     echo "IRkernel::installspec(user=FALSE, displayname='R$PROJECT_NAME')" | \
     $CONDA_PREFIX/bin/R --slave  
 
-    jupyter lab --allow-root --port=$JUPYTER_LAB_PORT &
+    jupyter lab --allow-root --port=$JUPYTER_LAB_PORT > /dev/null 2>&1 &
     
     tensorboard --port=$TENSORBOARD_PORT \
-      --logdir=/root/$PROJECT_NAME/checkpoints/ &
-   
+      --logdir=/root/$PROJECT_NAME/checkpoints/ > /dev/null 2>&1 &
+
     dask-scheduler --host "*" \
       --port=$DASK_SCHEDULER_PORT \
       --dashboard-address=$BOKEH_PORT &
