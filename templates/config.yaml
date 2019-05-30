@@ -63,7 +63,7 @@ data:
 
     dask-scheduler --host "*" \
       --port=$DASK_SCHEDULER_PORT \
-      --dashboard-address=$BOKEH_PORT &
+      --dashboard-address="*:$BOKEH_PORT" &
 
     function update(){
       eval $UPDATE_REPO_COMMAND
