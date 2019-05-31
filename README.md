@@ -10,6 +10,7 @@
 
 - Kubernetes cluster v1.8+
 - jq 1.5-1
+- uuidgen-runtime 2.31.1
 - Google Cloud SDK 236.0.0
 
 ## Quick deployment on Google Cloud

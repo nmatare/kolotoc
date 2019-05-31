@@ -40,7 +40,7 @@ MINIKUBE="" # minikube; whether to run in minikube or not, debug setting
 MINIKUBE_DISK_SIZE="50GB"
 PROJECT_NAME="${PROJECT_NAME:- 'kolotoc'}"
 CLUSTER_NAME="$PROJECT_NAME-cluster-$(uuidgen | cut -c1-8)"
-ZONE="us-east1-c"
+ZONE="us-east1-d"
 MACHINE_TYPE="n1-standard-2"
 MACHINE_GPU_TYPE="nvidia-tesla-k80"
 MACHINE_GPUS=0
@@ -343,9 +343,6 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm del --purge "$CLUSTER_NAME"
 fi
 
-helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
-# Note (1): This __MUST__ be done after helm install othwerise charts
-# will fail to bind due to taints/tolerations.
 kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$ENTRY_POINT_NAME" \
   "node"="scheduler":"NoSchedule" --overwrite
@@ -353,6 +350,7 @@ kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$WORKER_RING_NAME" \
   "node"="worker":"NoSchedule" --overwrite
 
+helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
 printf "${GREEN}Waiting for helm chart to finish installation... ${OFF} \n"
 export SCHEDULER_POD=$(waitfor kubectl get pods -l \
   role=scheduler -o jsonpath="{.items[0].metadata.name}")
