@@ -321,13 +321,6 @@ if [[ "$MINIKUBE" == "minikube" ]]; then
     -p '{"imagePullSecrets": [{"name": "gcr-registry-key"}]}'
 fi
 
-kubectl taint nodes \
-  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$ENTRY_POINT_NAME" \
-  "node"="scheduler":"NoSchedule" --overwrite
-kubectl taint nodes \
-  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$WORKER_RING_NAME" \
-  "node"="worker":"NoSchedule" --overwrite
-
 rm -rf "$HOME/.helm";
 helm init --service-account tiller --upgrade --wait;
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
@@ -335,6 +328,15 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
 fi
 
 helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
+# Note (1): This __MUST__ be done after helm install othwerise charts
+# will fail to bind due to taints/tolerations.
+kubectl taint nodes \
+  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$ENTRY_POINT_NAME" \
+  "node"="scheduler":"NoSchedule" --overwrite
+kubectl taint nodes \
+  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$WORKER_RING_NAME" \
+  "node"="worker":"NoSchedule" --overwrite
+
 printf "${GREEN}Waiting for helm chart to finish installation... ${OFF} \n"
 export SCHEDULER_POD=$(waitfor kubectl get pods -l \
   role=scheduler -o jsonpath="{.items[0].metadata.name}")
