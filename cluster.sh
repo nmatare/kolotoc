@@ -280,6 +280,8 @@ image:
   repository: $DOCKER_REPOSITORY
   tag: $DOCKER_TAG
 
+serviceFile: $SERVICE_FILE
+
 ssh:
   hostKey: |-
 $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')

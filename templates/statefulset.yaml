@@ -73,6 +73,8 @@ spec:
         env:
         - name: PROJECT_NAME
           value: "{{ .Values.projectName }}"
+        - name: SERVICE_FILE
+          value: "{{ .Values.serviceFile }}"
         - name: HOST_SSH_PORT
           value: "{{ .Values.ssh.port }}"
         - name: CUDA_STUB_LOCATION

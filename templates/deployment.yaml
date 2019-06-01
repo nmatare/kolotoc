@@ -59,6 +59,8 @@ spec:
         env:
          - name: PROJECT_NAME
            value: "{{ .Values.projectName }}"
+         - name: SERVICE_FILE
+           value: "{{ .Values.serviceFile }}"
          - name: CUDA_STUB_LOCATION
            value: "{{ .Values.cuda.stubs }}"
          - name: DASK_SCHEDULER_PORT
