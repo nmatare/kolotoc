@@ -10,7 +10,7 @@ function usage {
   script_name=$0
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] [--num-worker-nodes num_of_workers]"
-  echo "               [--service-file service_file] [--docker-repository docker_repository]"
+  echo "               [--docker-repository docker_repository]"
   echo "               [--docker-tag docker_tag] [--node-gpus node_gpus]"
   echo "               [--node-type machine_type] [--scheduler-type]"
   echo "               [--dask-workers-per-node] [--dask-threads-per-worker]"
@@ -19,8 +19,6 @@ function usage {
   echo "  Parameters: "
   echo "    cluster_name:             name of the Kubernetes cluster. "
   echo "                              (default: kolotoc-cluster-uuid)"
-  echo "    service_file:             the file path to the Google Cloud  "
-  echo "                              service account credential. "
   echo "    num_worker_nodes:         number of worker nodes to launch."
   echo "    scheduler_type:           the google cloud machine type for scheduler. "
   echo "    node_type:                the google cloud machine type for workers. "
@@ -108,10 +106,6 @@ setargs(){
         shift
         CLUSTER_NAME=$1
         ;;
-      "--service-file")
-        shift
-        SERVICE_FILE=$1
-        ;;
       "--num-worker-nodes")
         shift
         NUM_WORKER_NODES=$1
@@ -155,12 +149,6 @@ setargs(){
 }
 setargs $*
 
-if [[ -z "$SERVICE_FILE" ]]; then
-  echo "Please pass the location of the service file "
-  echo "in the '--service-file' parameter"
-  exit 1
-fi
-
 waitfor(){
   while [ -z $("$@") ]; do
     sleep 5
@@ -168,7 +156,6 @@ waitfor(){
   echo $("$@")
 }
 
-SERVICE_ACCOUNT="$(jq ".client_email" $SERVICE_FILE | tr -d '"')"
 GREEN='\u001b[32;1m'
 RED='\u001b[31;1m'
 OFF='\033[0m'
@@ -213,7 +200,6 @@ else
     gcloud container clusters \
     create "$CLUSTER_NAME" --no-user-output-enabled \
       --no-async \
-      --service-account="$SERVICE_ACCOUNT" \
       --machine-type="f1-micro" \
       --zone="$ZONE"
 
@@ -224,7 +210,6 @@ else
     gcloud container node-pools \
     create "$CLUSTER_NAME-$ENTRY_POINT_NAME" --no-user-output-enabled \
       --cluster="$CLUSTER_NAME" \
-      --service-account="$SERVICE_ACCOUNT" \
       --disk-type="$SCHEDULER_DISK_TYPE" \
       --disk-size="$SCHEDULER_DISK_SIZE" \
       --num-nodes="1" \
@@ -237,7 +222,6 @@ else
     create "$CLUSTER_NAME-$WORKER_RING_NAME" --no-user-output-enabled \
       --preemptible \
       --cluster="$CLUSTER_NAME" \
-      --service-account="$SERVICE_ACCOUNT" \
       --num-nodes="$NUM_WORKER_NODES" \
       --machine-type="$MACHINE_TYPE" \
       --disk-size="$MACHINE_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
@@ -279,8 +263,6 @@ projectName: $PROJECT_NAME
 image:
   repository: $DOCKER_REPOSITORY
   tag: $DOCKER_TAG
-
-serviceFile: $SERVICE_FILE
 
 ssh:
   hostKey: |-
@@ -339,18 +321,18 @@ if [[ "$MINIKUBE" == "minikube" ]]; then
     -p '{"imagePullSecrets": [{"name": "gcr-registry-key"}]}'
 fi
 
-rm -rf "$HOME/.helm";
-helm init --service-account tiller --upgrade --wait;
-if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
-  helm del --purge "$CLUSTER_NAME"
-fi
-
 kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$ENTRY_POINT_NAME" \
   "node"="scheduler":"NoSchedule" --overwrite
 kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$WORKER_RING_NAME" \
   "node"="worker":"NoSchedule" --overwrite
+
+rm -rf "$HOME/.helm";
+helm init --service-account tiller --upgrade --wait;
+if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
+  helm del --purge "$CLUSTER_NAME"
+fi
 
 helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
 printf "${GREEN}Waiting for helm chart to finish installation... ${OFF} \n"

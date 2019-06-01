@@ -8,8 +8,6 @@ image:
 cuda:
   stubs: "/usr/local/cuda/targets/x86_64-linux/lib/stubs"
 
-serviceFile: ""
-
 ssh:
   port: 3222
   hostKey: |-
