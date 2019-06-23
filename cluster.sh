@@ -40,7 +40,7 @@ MINIKUBE="" # minikube; whether to run in minikube or not, debug setting
 MINIKUBE_DISK_SIZE="50GB"
 PROJECT_NAME="${PROJECT_NAME:- 'kolotoc'}"
 CLUSTER_NAME="$PROJECT_NAME-cluster-$(uuidgen | cut -c1-8)"
-ZONE="us-east1-c"
+ZONE="us-east1-d"
 MACHINE_TYPE="n1-standard-2"
 MACHINE_GPU_TYPE="nvidia-tesla-k80"
 MACHINE_GPUS=0
@@ -265,11 +265,6 @@ export DASK_WORKER_MEM=$(python -c "import os; \
   print(float(os.environ['MACHINE_MEMORY']) / \
   float(os.environ['DASK_WORKER_PROCESS']))")
 
-export UPDATE_REPO_COMMAND="git fetch --all && \
-  git reset --hard origin/master && \
-  chmod 600 $BUILD_KEY_LOCATION && \
-  git pull origin master"
-
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
 chmod 400 $TEMP_DIR/id_rsa
 
@@ -291,7 +286,6 @@ useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
 
 scheduler:
   env:
-    UPDATE_REPO_COMMAND: $UPDATE_REPO_COMMAND
     GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
     DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
@@ -307,7 +301,7 @@ worker:
       nvidia.com/gpu: $MACHINE_GPUS
 
   dask:
-    number: $DASK_WORKER_PROCESS
+    number: $((DASK_WORKER_PROCESS - 1))  # dask workers start at 0
     gpu: $MACHINE_GPUS
     memory: $DASK_WORKER_MEM
     threads: $DASK_THREADS_PER_PROCESS
