@@ -4,6 +4,7 @@ image:
   repository: "nmatare/kolotoc"
   tag: "latest"
   pullPolicy: IfNotPresent
+  buildKey: ""
 
 cuda:
   stubs: "/usr/local/cuda/targets/x86_64-linux/lib/stubs"
@@ -22,7 +23,7 @@ useHostPID: false
 
 scheduler:
   schedulerPort: 8686
-  bokehPort: 8687
+  dashboardPort: 8687
   jupyterPort: 8889
   tensorboardPort: 5056
 

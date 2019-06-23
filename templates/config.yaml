@@ -45,9 +45,54 @@ data:
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     /usr/sbin/sshd
 
-    source activate $PROJECT_NAME
+    function repo(){
+        if [[ "$1" == "update" ]]; then
+            echo "Updating the repository across the cluster... "
+            export REPO_COMMAND="git fetch --all && \
+                git reset --hard origin/$2 && \
+                chmod 600 $BUILD_KEY_LOCATION && \
+                git pull origin $2"
+        fi
+
+        if [[ "$1" == "checkout" ]]; then
+            echo "Switching cluster to branch $2... "
+            export REPO_COMMAND="git checkout $2"
+        fi
+
+        if [[ -z "$2" ]]; then
+            echo "Failed. Please pass the desired branch name. "
+        fi
+
+        eval $REPO_COMMAND
+        mpiexec --allow-run-as-root \
+            --mca orte_keep_fqdn_hostnames t \
+            --timeout 30 \
+            --hostfile /kolotoc/generated/hostfile \
+            /bin/bash -c "$REPO_COMMAND"
+    }
+
+    function goto(){
+      workers="$(($(wc -l /kolotoc/generated/hostfile | cut -d ' ' -f1) - 1))"
+      if [[ -z "$1" ]]; then
+        echo "Please specify a machine-node-rank. "
+        exit
+      fi
+      
+      if [[ "$1" -ge "$workers" ]]; then
+        echo "Machine-node-rank-$1 does not exist. "
+        exit
+      fi
+      echo "Going to machine-node-rank-$1. "
+      ssh "$(tail -n +$(($1 + 2)) /kolotoc/generated/hostfile | cut -d ' ' -f1)"
+    }
+
+    declare -f repo goto >> /root/.bashrc
     ldconfig $CUDA_STUB_LOCATION
-    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
+    echo 'export GIT_SSH_COMMAND="ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"' >> /root/.bashrc
+    source /root/.bashrc
+
+    repo update master
+    source activate $PROJECT_NAME
 
     $CONDA_PREFIX/bin/python -m ipykernel install --user \
         --name $PROJECT_NAME  --display-name "P3.7-$PROJECT_NAME" 
@@ -62,52 +107,7 @@ data:
 
     dask-scheduler --host "*" \
       --port=$DASK_SCHEDULER_PORT \
-      --dashboard-address="*:$BOKEH_PORT" &
-
-    function repo(){
-        if [[ "$1" == "update" ]]; then
-            echo "Updating the cluster's repository... "
-            REPO_COMMAND="git fetch --all && \
-                git reset --hard origin/$2 && \
-                chmod 600 $BUILD_KEY_LOCATION && \
-                git pull origin $2"
-        fi
-
-        if [[ "$1" == "switch" ]]; then
-            echo "Switching cluster to branch $2... "
-            REPO_COMMAND="git checkout $2"
-        fi
-
-        if [[ -z "$2" ]]; then
-            echo "Fail. Please pass the desired branch name. "
-            exit
-        fi
-
-        eval $REPO_COMMAND
-        mpiexec --allow-run-as-root \
-            --mca orte_keep_fqdn_hostnames t \
-            --timeout 30 \
-            --hostfile /kolotoc/generated/hostfile \
-            /bin/bash -c "REPO_COMMAND"
-    }
-
-    function goto(){
-      workers="$(($(wc -l /kolotoc/generated/hostfile | cut -d ' ' -f1) - 1))"
-      if [[ -z "$1" ]]; then
-        echo "Please specify a worker-rank"
-        exit
-      fi
-      
-      if [[ "$1" -ge "$workers" ]]; then
-        echo "Worker-rank-$1 does not exist"
-        exit
-      fi
-      echo "Going to worker-rank-$1. "
-      ssh "$(tail -n +$(($1 + 2)) /kolotoc/generated/hostfile | cut -d ' ' -f1)"
-    }
-
-    declare -f repo goto >> /root/.bashrc
-    repo update master &
+      --dashboard-address="*:$DASK_DASHBOARD_PORT" &
 
     if [ $# -eq 0 ]; then
         sleep infinity
@@ -224,11 +224,12 @@ data:
     fi
 
     echo "DASK_SCHEDULER_ADDRESS=${DASK_SCHEDULER_ADDRESS}" >> /etc/environment
-    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
+    echo "GIT_SSH_COMMAND=ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no" >> /etc/environment
 
     source activate $PROJECT_NAME
-    for worker in $(seq 0 "$DASK_WORKER_PROCESS"); do 
-      echo "Launching dask-worker process $worker of $DASK_WORKER_PROCESS"
+    for worker in $(seq 0 "$((DASK_WORKER_PROCESS - 1))"); do 
+      echo "Launching dask-worker process $((worker + 1)) of $DASK_WORKER_PROCESS"
+
       dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
         --name=worker-rank-$(hostname -A | cut -d'-' -f5 | grep -o '[0-9]')-$worker-$(hostname -i) \
         --resources="CPU=$DASK_THREADS_PER_PROCESS GPU=$DASK_WORKER_GPU MEM=$DASK_WORKER_MEM" \
@@ -236,6 +237,7 @@ data:
         --local-directory=/tmp \
         --nanny \
         --nthreads="$DASK_THREADS_PER_PROCESS" &
+
     done;
 
     sleep infinity

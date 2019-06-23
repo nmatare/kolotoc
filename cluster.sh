@@ -10,8 +10,7 @@ function usage {
   script_name=$0
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] [--num-worker-nodes num_of_workers]"
-  echo "               [--docker-repository docker_repository]"
-  echo "               [--docker-tag docker_tag] [--node-gpus node_gpus]"
+  echo "               [--node-gpus node_gpus]"
   echo "               [--node-type machine_type] [--scheduler-type]"
   echo "               [--dask-workers-per-node] [--dask-threads-per-worker]"
   echo "               [--node-disk-size machine_disk_size] [--help]"
@@ -30,27 +29,31 @@ function usage {
   echo "    dask_threads_per_worker:  the number of threads assigned to each "
   echo "                              dask-worker process. (default: 1) "
   echo ""
-  echo "    help:               print setup."
+  echo "    help:                     print setup."
 }
 
 # Image Config
-MINIKUBE="" # minikube; whether to run in minikube or not, debug setting
-MINIKUBE_DISK_SIZE="50GB"
-PROJECT_NAME="${PROJECT_NAME:- 'kolotoc'}"
+PROJECT_NAME="${PROJECT_NAME:-kolotoc}"
 CLUSTER_NAME="$PROJECT_NAME-cluster-$(uuidgen | cut -c1-8)"
 ZONE="us-east1-d"
-MACHINE_TYPE="n1-standard-2"
-MACHINE_GPU_TYPE="nvidia-tesla-k80"
-MACHINE_GPUS=0
-MACHINE_DISK_SIZE=50
-NUM_WORKER_NODES=1
+DOCKER_REPOSITORY="${DOCKER_REPOSITORY:-nmatare/kolotoc}"
+DOCKER_TAG="${DOCKER_TAG:-latest}"
+
+# Scheduler config
 ENTRY_POINT_NAME="scheduler" # Scheduler (entrypoint) config
-WORKER_RING_NAME="worker-ring"
 SCHEDULER_TYPE="n1-standard-2"
 SCHEDULER_DISK_SIZE=50
 SCHEDULER_DISK_TYPE="pd-standard"
-JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-'kolotoc'}"
+JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-kolotoc}"
 BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
+
+# Worker config
+MACHINE_TYPE="n1-standard-2"
+WORKER_RING_NAME="worker-ring"
+MACHINE_DISK_SIZE=50
+NUM_WORKER_NODES=1
+MACHINE_GPU_TYPE="nvidia-tesla-k80"
+MACHINE_GPUS=0
 # Worker (ring-all-reduce) config
 # We don't set --nprocs so that we can name the individaul workers and follow
 # best-practices: https://github.com/dask/distributed/issues/2471
@@ -58,8 +61,7 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 # Each CPU on the node will get one dask-worker running one thread
 # https://github.com/dask/dask/blob/master/docs/source/configuration.rst
 DASK_WORKER_PROCESS="" # number of dask-workers per "worker" node, defaults to number of CPUs if blank
-DASK_THREADS_PER_PROCESS=1
-# number of times a task can fail before killed by scheduler	
+DASK_THREADS_PER_PROCESS=1 # number of times a task can fail before killed by scheduler 
 DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES=100
 # unlike spill/pause/target, terminate is set on the nanny and, currently,
 # there is no easy way to adjust parameters on the nanny. We hard-code this 
@@ -169,67 +171,58 @@ if [ "$MACHINE_GPUS" -gt "0" ]; then
   ACCELERATOR="--accelerator type=$MACHINE_GPU_TYPE,count=$MACHINE_GPUS --zone=$ZONE"
 fi
 
-if [[ "$MINIKUBE" == "minikube" ]]; then
-   printf "${GREEN}Setting up developer cluster in minikube... ${OFF}\n";
-  if [[ $(minikube status | grep "host: ") == "host: Running" ]]; then
-    kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
-  else
-    minikube start --disk-size="$MINIKUBE_DISK_SIZE";
-  fi
+MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$MACHINE_TYPE]}" | awk '{print $1}')
+MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$MACHINE_TYPE]}" | awk '{print $2}')
+
+if [[ -z "$MACHINE_CPU" || -z "$MACHINE_MEMORY" ]]; then
+  printf "${RED}Could not find machine type $MACHINE_TYPE on GC! ${OFF}\n"
+  exit 1
+fi
+
+CLUSTER="$(gcloud container clusters list --format="value(name)")"
+
+if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
+  printf "${GREEN}Updating existing cluster $CLUSTER_NAME... ${OFF}\n"
+  kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
 else
-  MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$MACHINE_TYPE]}" | awk '{print $1}')
-  MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$MACHINE_TYPE]}" | awk '{print $2}')
+  gcloud config set project "$GOOGLE_PROJECT_NAME"
+  printf "${GREEN}Creating worker ring $CLUSTER_NAME on Google Cloud... ${OFF}\n"
+  # Known issue where you can't modify the name of the default node-pool; so
+  # start the cluster as a 'default-pool', but delete this node pool at the end
+  # https://serverfault.com/questions/822787/create-google-container-
+  # engine-cluster-without-default-node-pool
+  gcloud container clusters \
+  create "$CLUSTER_NAME" --no-user-output-enabled \
+    --no-async \
+    --machine-type="f1-micro" \
+    --zone="$ZONE"
 
-  if [[ -z "$MACHINE_CPU" || -z "$MACHINE_MEMORY" ]]; then
-   printf "${RED}Could not find machine type $MACHINE_TYPE on GC! ${OFF}\n"
-   exit 1
-  fi
+  # Create the scheduler node: juypter notebook, bokeh dashboard, and all
+  # other exposed services will sit here. This is the cluster's de-facto
+  # entrypoint.
+  printf "${GREEN}Adding a Dask scheduler node... ${OFF}\n"
+  gcloud container node-pools \
+  create "$CLUSTER_NAME-$ENTRY_POINT_NAME" --no-user-output-enabled \
+    --cluster="$CLUSTER_NAME" \
+    --disk-type="$SCHEDULER_DISK_TYPE" \
+    --disk-size="$SCHEDULER_DISK_SIZE" \
+    --num-nodes="1" \
+    --machine-type="$SCHEDULER_TYPE" \
+    --zone="$ZONE"
 
-  CLUSTER="$(gcloud container clusters list --format="value(name)")"
+  # Create a premptible worker ring: checkpoints are sent back to the
+  # scheduler, and the scheduler controls the start/teardown of jobs
+  gcloud container node-pools \
+  create "$CLUSTER_NAME-$WORKER_RING_NAME" --no-user-output-enabled \
+    --preemptible \
+    --cluster="$CLUSTER_NAME" \
+    --num-nodes="$NUM_WORKER_NODES" \
+    --machine-type="$MACHINE_TYPE" \
+    --disk-size="$MACHINE_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
 
-  if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
-    printf "${GREEN}Updating existing cluster $CLUSTER_NAME... ${OFF}\n"
-    kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
-  else
-    gcloud config set project "$GOOGLE_PROJECT_NAME"
-    printf "${GREEN}Creating worker ring $CLUSTER_NAME on Google Cloud... ${OFF}\n"
-    # Known issue where you can't modify the name of the default node-pool; so
-    # start the cluster as a 'default-pool', but delete this node pool at the end
-    # https://serverfault.com/questions/822787/create-google-container-
-    # engine-cluster-without-default-node-pool
-    gcloud container clusters \
-    create "$CLUSTER_NAME" --no-user-output-enabled \
-      --no-async \
-      --machine-type="f1-micro" \
-      --zone="$ZONE"
-
-    # Create the scheduler node: juypter notebook, bokeh dashboard, and all
-    # other exposed services will sit here. This is the cluster's de-facto
-    # entrypoint.
-    printf "${GREEN}Adding a Dask scheduler node... ${OFF}\n"
-    gcloud container node-pools \
-    create "$CLUSTER_NAME-$ENTRY_POINT_NAME" --no-user-output-enabled \
-      --cluster="$CLUSTER_NAME" \
-      --disk-type="$SCHEDULER_DISK_TYPE" \
-      --disk-size="$SCHEDULER_DISK_SIZE" \
-      --num-nodes="1" \
-      --machine-type="$SCHEDULER_TYPE" \
-      --zone="$ZONE"
-
-    # Create a premptible worker ring: checkpoints are sent back to the
-    # scheduler, and the scheduler controls the start/teardown of jobs
-    gcloud container node-pools \
-    create "$CLUSTER_NAME-$WORKER_RING_NAME" --no-user-output-enabled \
-      --preemptible \
-      --cluster="$CLUSTER_NAME" \
-      --num-nodes="$NUM_WORKER_NODES" \
-      --machine-type="$MACHINE_TYPE" \
-      --disk-size="$MACHINE_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
-
-    # Delete the default node pool
-    gcloud container node-pools \
-    delete "default-pool" --quiet --cluster "$CLUSTER_NAME" --zone="$ZONE"
-  fi
+  # Delete the default node pool
+  gcloud container node-pools \
+  delete "default-pool" --quiet --cluster "$CLUSTER_NAME" --zone="$ZONE"
 fi
 
 if [[ -z "$DASK_WORKER_PROCESS" ]]; then
@@ -265,12 +258,9 @@ $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
   hostKeyPub: |-
 $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
-useHostNetwork: $(if [ "$MINIKUBE" != "minikube" ]; then
-  echo "true"; else echo "false"; fi)
-
 scheduler:
   env:
-    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
+    BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
     DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
     DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
 
@@ -285,13 +275,13 @@ worker:
       nvidia.com/gpu: $MACHINE_GPUS
 
   dask:
-    number: $((DASK_WORKER_PROCESS - 1))  # dask workers start at 0
+    number: $DASK_WORKER_PROCESS
     gpu: $MACHINE_GPUS
     memory: $DASK_WORKER_MEM
     threads: $DASK_THREADS_PER_PROCESS
 
   env:
-    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
+    BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
     DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
     DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
@@ -302,18 +292,6 @@ kubectl --namespace kube-system create serviceaccount tiller
 kubectl create clusterrolebinding tiller \
   --clusterrole cluster-admin \
   --serviceaccount kube-system:tiller
-
-# https://ryaneschinger.com/blog/using-google-container-registry-
-# gcr-with-minikube/
-if [[ "$MINIKUBE" == "minikube" ]]; then
-  kubectl create secret docker-registry gcr-registry-key \
-    --docker-server="$DOCKER_REPOSITORY" \
-    --docker-username="_json_key" \
-    --docker-password="$(cat $SERVICE_FILE)" \
-    --docker-email="$AUTHOR_EMAIL"
-  kubectl patch serviceaccount default \
-    -p '{"imagePullSecrets": [{"name": "gcr-registry-key"}]}'
-fi
 
 rm -rf "$HOME/.helm";
 helm init --service-account tiller --upgrade --wait;
@@ -342,9 +320,9 @@ kubectl expose pod "$SCHEDULER_POD" \
   --port="8889" \
   --target-port="8889"
 
-# Expose Dask-Bokeh notebook service
+# Expose Dask notebook service
 kubectl expose pod "$SCHEDULER_POD" \
-  --name="dask-bokeh" \
+  --name="dashboard" \
   --type="NodePort" \
   --port="8687" \
   --target-port="8687"
@@ -357,27 +335,37 @@ kubectl expose pod "$SCHEDULER_POD" \
   --target-port="5056"
 
 # Output to user console
+echo ""
 printf "${GREEN}Jupyter notebook: https://127.0.0.1:8889 ${OFF}\n"
 printf "${RED}Password: $JUPYTER_NOTEBOOK_PASSWORD ${OFF}\n"
 
-printf "${GREEN}Bokeh dashboard: http://127.0.0.1:8687/status ${OFF}\n"
+printf "${GREEN}Dask dashboard: http://127.0.0.1:8687/status ${OFF}\n"
 printf "${GREEN}Tensorboard: http://127.0.0.1:5056 ${OFF}\n"
+echo ""
 
 printf "${GREEN}Port-forward: \
-'kubectl port-forward $SCHEDULER_POD 8889 8687 \
-5056' Use 'pkill kubectl -9' to kill. ${OFF}\n"
-
+'kubectl port-forward $SCHEDULER_POD 8889 8686 8687 5056' \
+Use 'pkill kubectl -9' to kill. ${OFF}\n"
 printf "${GREEN}Access entrypoint: \
 'kubectl exec $SCHEDULER_POD -it bash' ${OFF}\n"
+echo ""
 
 printf "${GREEN}Stream logs: \
 'kubectl logs $SCHEDULER_POD -f' ${OFF}\n"
-
 printf "${GREEN}Copy trials/checkpoints: \
- 'kubectl cp default/$SCHEDULER_POD:/root/$PROJECT_NAME/checkpoints \
- $PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
+'kubectl cp default/$SCHEDULER_POD:/root/$PROJECT_NAME/checkpoints \
+$PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
+echo ""
 
-pkill kubectl -9 # kill any previous instances
+printf "${GREEN}Switch to master branch across all machines: \
+'repo checkout master' ${OFF}\n"
+printf "${GREEN}Update the repository across all machines: \
+'repo update master' ${OFF}\n"
+printf "${GREEN}Go to machine node zero: \
+'goto 0' ${OFF}\n"
+echo ""
+
+pkill kubectl -9  # kill any previous instances
 kubectl exec "$SCHEDULER_POD" -it bash
 
 # EOF

@@ -63,8 +63,8 @@ spec:
            value: "{{ .Values.cuda.stubs }}"
          - name: DASK_SCHEDULER_PORT
            value: "{{ .Values.scheduler.schedulerPort }}"
-         - name: BOKEH_PORT
-           value: "{{ .Values.scheduler.bokehPort }}"
+         - name: DASK_DASHBOARD_PORT
+           value: "{{ .Values.scheduler.dashboardPort }}"
          - name: JUPYTER_LAB_PORT
            value: "{{ .Values.scheduler.jupyterPort }}"
          - name: TENSORBOARD_PORT

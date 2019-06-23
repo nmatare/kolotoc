@@ -84,6 +84,7 @@ image:
   repository: "nmatare/kolotoc"
   tag: "latest"
   pullPolicy: IfNotPresent
+  buildKey: ""
 
 cuda:
   stubs: "/usr/local/cuda/targets/x86_64-linux/lib/stubs"
@@ -102,7 +103,7 @@ useHostPID: false
 
 scheduler:
   schedulerPort: 8686
-  bokehPort: 8687
+  dashboardPort: 8687
   jupyterPort: 8889
   tensorboardPort: 5056
 
@@ -131,6 +132,7 @@ the respective default values.
 | `image.repository`  | Dockerfile repository    | `nmatare/kolotoc` |
 | `image.tag`  | Dockerfile tag    | `latest` |
 | `image.pullPolicy`  |  Kubernetes 'pull policy'   | `IfNotPresent` |
+| `image.buildKey`  |  A repository build key   | `""` |
 | `cuda.stubs` | Location to CUDA stubs | `/usr/local/cuda/targets/x86_64-linux/lib/stubs` |
 | `ssh.port` | The SSH port for worker-node communication | `3222` |
 | `ssh.hostKey`  | SSH RSA private key    | Required |
@@ -138,7 +140,7 @@ the respective default values.
 | `useHostNetwork`  | Host network    | `true` |
 | `useHostPID` | Host PID | `false` |
 | `scheduler.schedulerPort`  | The port to the Dask scheduler    | `8686` |
-| `scheduler.bokehPort` | Dask Web UI Port (exposed) | `8687` |
+| `scheduler.dashboardPort` | Dask Web UI Port (exposed) | `8687` |
 | `scheduler.jupyterPort`  | Jupyter Lab Port (exposed) | `8889` |
 | `scheduler.tensorboardPort` | Tensorboard Port (exposed) | `5056` |
 | `scheduler.env` | Scheduler environment variables | `{}` |
