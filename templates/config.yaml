@@ -48,7 +48,8 @@ data:
     function repo(){
         if [[ "$1" == "update" ]]; then
             echo "Updating the repository across the cluster... "
-            export REPO_COMMAND="git fetch --all && \
+            export REPO_COMMAND="chmod 600 $BUILD_KEY_LOCATION && \
+                git fetch --all && \
                 git reset --hard origin/$2 && \
                 chmod 600 $BUILD_KEY_LOCATION && \
                 git pull origin $2"
@@ -87,10 +88,9 @@ data:
     }
 
     declare -f repo goto >> /root/.bashrc
-    ldconfig $CUDA_STUB_LOCATION
-    echo 'export GIT_SSH_COMMAND="ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"' >> /root/.bashrc
-    source /root/.bashrc
+    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
 
+    ldconfig $CUDA_STUB_LOCATION
     repo update master
     source activate $PROJECT_NAME
 
@@ -210,6 +210,7 @@ data:
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     /usr/sbin/sshd
 
+    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
     export DASK_SCHEDULER_ADDRESS="$(head -n 1 /kolotoc/generated/hostfile | cut -d ' ' -f1)"
     retry 30 ssh -o ConnectTimeout=2 -q $DASK_SCHEDULER_ADDRESS exit
 
@@ -223,13 +224,10 @@ data:
       ldconfig $CUDA_STUB_LOCATION
     fi
 
-    echo "DASK_SCHEDULER_ADDRESS=${DASK_SCHEDULER_ADDRESS}" >> /etc/environment
-    echo "GIT_SSH_COMMAND=ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no" >> /etc/environment
-
     source activate $PROJECT_NAME
+
     for worker in $(seq 0 "$((DASK_WORKER_PROCESS - 1))"); do 
       echo "Launching dask-worker process $((worker + 1)) of $DASK_WORKER_PROCESS"
-
       dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
         --name=worker-rank-$(hostname -A | cut -d'-' -f5 | grep -o '[0-9]')-$worker-$(hostname -i) \
         --resources="CPU=$DASK_THREADS_PER_PROCESS GPU=$DASK_WORKER_GPU MEM=$DASK_WORKER_MEM" \

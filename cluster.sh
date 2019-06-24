@@ -231,7 +231,7 @@ fi
 
 # Install NVIDIA drivers if using GPUs
 if [ "$MACHINE_GPUS" -gt "0" ]; then
-  printf "${GREEN}Applying $HOST_IMAGE_TYPE GPU device installer... ${OFF}\n"
+  printf "${GREEN}Applying GPU device installer... ${OFF}\n"
   kubectl apply -f daemonset-preloaded.yaml
   kubectl label nodes $(kubectl get nodes -l \
     cloud.google.com/gke-nodepool="$CLUSTER_NAME-$WORKER_RING_NAME" \
@@ -260,6 +260,7 @@ $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
 scheduler:
   env:
+    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
     DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
     DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
@@ -281,6 +282,7 @@ worker:
     threads: $DASK_THREADS_PER_PROCESS
 
   env:
+    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
     BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
     DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
     DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
