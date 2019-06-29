@@ -31,16 +31,13 @@ Run `./cluster.sh ---num-towers 4 num-carriers 1 --carrier-type n1-standard-4` t
 
 Type `./cluster.sh --help` for a list of available options:
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `cluster-name`  | cluster  name  | `kolotoc-cluster-uuid` |
-
-| `num-towers`  | number of ring-all-reduce ranks | `1` |
-| `num-gpus`  | number of GPUs to attach per rank | `0` |
-
-| `num-carriers`  | | number of dask-worker machines | `1` |
-| `carrier-type`  | | dask-worker machine types | `n1-standard-4` |
-
+| Parameter       | Description                 | Default |
+|-----------------|-----------------------------|---------|
+| `cluster-name`  | cluster  name               | `kolotoc-cluster-uuid` |
+| `num-towers`    | number of ring-all-reduce ranks | `1` |
+| `num-gpus`      | number of GPUs to attach per rank | `0` |
+| `num-carriers`  | number of dask-worker machines | `1` |
+| `carrier-type`  | dask-worker machine types | `n1-standard-4` |
 
 ### Interacting with the Cluster
 
