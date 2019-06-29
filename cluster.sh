@@ -9,27 +9,24 @@ set -a
 function usage {
   script_name=$0
   echo "Usage:"
-  echo "  $script_name [--cluster-name cluster_name] [--num-worker-nodes num_of_workers]"
-  echo "               [--node-gpus node_gpus]"
-  echo "               [--node-type machine_type] [--scheduler-type]"
-  echo "               [--dask-workers-per-node] [--dask-threads-per-worker]"
-  echo "               [--node-disk-size machine_disk_size] [--help]"
-  echo ""
+  echo "  $script_name [--cluster-name cluster_name] "
+  echo "               [--num-carriers num_carrier_nodes]"
+  echo "               [--carrier-type carrier_machine_type]"
+
+  echo "               [--num-towers tower_machine_type]"
+  echo "               [--num-gpus tower_machine_gpus]"
+
+  echo "               [--help]"
+
   echo "  Parameters: "
-  echo "    cluster_name:             name of the Kubernetes cluster. "
-  echo "                              (default: kolotoc-cluster-uuid)"
-  echo "    num_worker_nodes:         number of worker nodes to launch."
-  echo "    scheduler_type:           the google cloud machine type for scheduler. "
-  echo "    node_type:                the google cloud machine type for workers. "
-  echo "    node_gpus:                the number of attached gpus. (default: 0)"
-  echo "    node_disk_size:           the size of each worker's disk space, given in "
-  echo "                              gigabytes. (default: 50GB)"
-  echo "    dask_workers_per_node:    the number of dask-workers running on each "
-  echo "                              node. (default: number of logical cores)"
-  echo "    dask_threads_per_worker:  the number of threads assigned to each "
-  echo "                              dask-worker process. (default: 1) "
-  echo ""
-  echo "    help:                     print setup."
+  echo "  cluster_name:       name of the Kubernetes cluster. "
+  echo "                      (default: kolotoc-cluster-uuid)"
+  echo "  num_carrier_nodes:  number of carriers (nodes with dask-workers) to launch."
+  echo "  carrier_type:       the machine type used by carriers (given by Google Cloud Compute). "
+
+  echo "  num_towers:         the number of ring-all-reduce machine nodes to launch. "
+  echo "  node_gpus:          the number gpus to attach to each tower. (default: 0)"
+  echo "  help:               print setup. "
 }
 
 # Image Config
@@ -40,66 +37,39 @@ DOCKER_REPOSITORY="${DOCKER_REPOSITORY:-nmatare/kolotoc}"
 DOCKER_TAG="${DOCKER_TAG:-latest}"
 
 # Scheduler config
-ENTRY_POINT_NAME="scheduler" # Scheduler (entrypoint) config
-SCHEDULER_TYPE="n1-standard-2"
+SCHEDULER_NAME="scheduler" # Scheduler (entrypoint) config
+SCHEDULER_MACHINE_TYPE="n1-standard-2"
 SCHEDULER_DISK_SIZE=50
 SCHEDULER_DISK_TYPE="pd-standard"
 JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-kolotoc}"
 BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 
-# Worker config
-MACHINE_TYPE="n1-standard-2"
-WORKER_RING_NAME="worker-ring"
-MACHINE_DISK_SIZE=50
-NUM_WORKER_NODES=1
-MACHINE_GPU_TYPE="nvidia-tesla-k80"
-MACHINE_GPUS=0
-# Worker (ring-all-reduce) config
-# We don't set --nprocs so that we can name the individaul workers and follow
-# best-practices: https://github.com/dask/distributed/issues/2471
-# "I recommend avoiding the --nprocs keyword."
-# Each CPU on the node will get one dask-worker running one thread
-# https://github.com/dask/dask/blob/master/docs/source/configuration.rst
-DASK_WORKER_PROCESS="" # number of dask-workers per "worker" node, defaults to number of CPUs if blank
-DASK_THREADS_PER_PROCESS=1 # number of times a task can fail before killed by scheduler 
+# Carrier config
+CARRIER_NAME="carrier"
+CARRIER_MACHINE_TYPE="n1-standard-2"
+CARRIER_DISK_SIZE=50
+NUM_CARRIER_NODES=1
+
+# Tower config
+TOWER_NAME="tower"
+TOWER_MACHINE_TYPE="n1-standard-2"
+TOWER_GPU_TYPE="nvidia-tesla-k80"
+TOWER_DISK_SIZE=50
+TOWER_MACHINE_GPUS=0
+NUM_TOWER_NODES=1
+
+# Dask config
 DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES=100
+DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE=1  # use kubernetes to manage
+DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=300
+DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=420
+# https://github.com/dask/dask/blob/master/docs/source/configuration.rst
 # unlike spill/pause/target, terminate is set on the nanny and, currently,
 # there is no easy way to adjust parameters on the nanny. We hard-code this 
 # here, and expect the user to adjust the other parameters via direct calls
 # to the workers. This is likewise true for `timeout`, which is set in the 
-# dask_config_parameters
-DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE=1
-DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=300
-DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=420
 
 export TEMP_DIR=`mktemp -d`
-declare -A AVAL_MACHINE_TYPES=(
-  ["n1-standard-1"]="1 3.75e9" # minimum requirements
-  ["n1-standard-2"]="2 7.5e9"
-  ["n1-standard-4"]="4 15e9"
-  ["n1-standard-8"]="8 30e9"
-  ["n1-standard-16"]="16 60e9"
-  ["n1-standard-32"]="32 120e9"
-  ["n1-standard-64"]="64 240e9"
-  ["n1-standard-96"]="96 360e9"
-  ["n1-highmem-2"]="2 13e9"
-  ["n1-highmem-4"]="4 26e9"
-  ["n1-highmem-8"]="8 52e9"
-  ["n1-highmem-16"]="16 104e9"
-  ["n1-highmem-32"]="32 208e9"
-  ["n1-highmem-64"]="64 416e9"
-  ["n1-highmem-96"]="96 624e9"
-  ["n1-highcpu-2"]="4 1.80e9"
-  ["n1-highcpu-4"]="4 3.60e9"
-  ["n1-highcpu-8"]="8 7.20e9"
-  ["n1-highcpu-16"]="16 14.4e9"
-  ["n1-highcpu-32"]="32 28.8e9"
-  ["n1-highcpu-64"]="64 57.6e9"
-  ["n1-highcpu-96"]="96 86.4e9"
-  ["n1-ultramem-40"]="40 961e9"
-  ["n1-ultramem-80"]="80 1922e9"
-  ["n1-ultramem-160"]="96 3844e9"
-  ["n1-megamem-96"]="96 1433.6e9")
 
 setargs(){
   while [ "$1" != "" ]; do
@@ -108,33 +78,21 @@ setargs(){
         shift
         CLUSTER_NAME=$1
         ;;
-      "--num-worker-nodes")
+      "--num-carriers")
         shift
-        NUM_WORKER_NODES=$1
+        NUM_CARRIER_NODES=$1
         ;;
-      "--node-type")
+      "--carrier-type")
         shift
-        MACHINE_TYPE=$1
+        CARRIER_MACHINE_TYPE=$1
         ;;
-      "--node-gpus")
+      "--num-towers")
         shift
-        MACHINE_GPUS=$1
+        NUM_TOWER_NODES=$1
         ;;
-      "--node-disk-size")
+      "--num-gpus")
         shift
-        MACHINE_DISK_SIZE=$1
-        ;;
-      "--dask-workers-per-node")
-        shift
-        DASK_WORKER_PROCESS=$1
-        ;;
-      "--dask-threads-per-worker")
-        shift
-        DASK_THREADS_PER_PROCESS=$1
-        ;;
-      "--scheduler-type")
-        shift
-        SCHEDULER_TYPE=$1
+        TOWER_MACHINE_GPUS=$1
         ;;
       "--help")
         usage
@@ -162,20 +120,61 @@ GREEN='\u001b[32;1m'
 RED='\u001b[31;1m'
 OFF='\033[0m'
 
-if [ "$MACHINE_GPUS" -gt "0" ]; then
-  if [ "$MACHINE_GPU_TYPE" == "" ]; then
-    printf "$You must specify a GPU type when setting '--machine-gpus'. \
-    Received $MACHINE_GPU_TYPE ${OFF}\n"
+declare -A AVAL_MACHINE_TYPES=(
+  ["n1-standard-1"]="1 3.75" # minimum requirements
+  ["n1-standard-2"]="2 7.5"
+  ["n1-standard-4"]="4 15"
+  ["n1-standard-8"]="8 30"
+  ["n1-standard-16"]="16 60"
+  ["n1-standard-32"]="32 120"
+  ["n1-standard-64"]="64 240"
+  ["n1-standard-96"]="96 360"
+  ["n1-highmem-2"]="2 13"
+  ["n1-highmem-4"]="4 26"
+  ["n1-highmem-8"]="8 52"
+  ["n1-highmem-16"]="16 104"
+  ["n1-highmem-32"]="32 208"
+  ["n1-highmem-64"]="64 416"
+  ["n1-highmem-96"]="96 624"
+  ["n1-highcpu-2"]="4 1.80"
+  ["n1-highcpu-4"]="4 3.60"
+  ["n1-highcpu-8"]="8 7.20"
+  ["n1-highcpu-16"]="16 14.4"
+  ["n1-highcpu-32"]="32 28.8"
+  ["n1-highcpu-64"]="64 57.6"
+  ["n1-highcpu-96"]="96 86.4"
+  ["n1-ultramem-40"]="40 961"
+  ["n1-ultramem-80"]="80 1922"
+  ["n1-ultramem-160"]="96 3844"
+  ["n1-megamem-96"]="96 1433.6")
+
+# We subtract cpu/memory from the machine nodes max available memory to ensure
+# that other kubernetes services may be scheduled alongside carriers and towers.
+function _get_memory(){
+  echo "$(python -c "print(round(float($1) * 0.75, 2))")Gi"
+}
+
+function _get_cpu(){
+  python -c "print(round(float($1) * 0.75, 2))"
+}
+
+TOWER_MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$TOWER_MACHINE_TYPE]}" | awk '{print $1}')
+TOWER_MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$TOWER_MACHINE_TYPE]}" | awk '{print $2}')
+
+CARRIER_MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$CARRIER_MACHINE_TYPE]}" | awk '{print $1}')
+CARRIER_MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$CARRIER_MACHINE_TYPE]}" | awk '{print $2}')
+
+if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
+  if [[ "$TOWER_GPU_TYPE" == "" ]]; then
+    printf "$You must specify a GPU type when setting '--num-gpus'. \
+    Received $TOWER_GPU_TYPE ${OFF}\n"
     exit 1
   fi
-  ACCELERATOR="--accelerator type=$MACHINE_GPU_TYPE,count=$MACHINE_GPUS --zone=$ZONE"
+  ACCELERATOR="--accelerator type=$TOWER_GPU_TYPE,count=$TOWER_MACHINE_GPUS --zone=$ZONE"
 fi
 
-MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$MACHINE_TYPE]}" | awk '{print $1}')
-MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$MACHINE_TYPE]}" | awk '{print $2}')
-
-if [[ -z "$MACHINE_CPU" || -z "$MACHINE_MEMORY" ]]; then
-  printf "${RED}Could not find machine type $MACHINE_TYPE on GC! ${OFF}\n"
+if [[ -z "$CARRIER_MACHINE_CPU" || -z "$CARRIER_MACHINE_MEMORY" ]]; then
+  printf "${RED}Could not find machine type $CARRIER_MACHINE_CPU on GC! ${OFF}\n"
   exit 1
 fi
 
@@ -186,7 +185,7 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
 else
   gcloud config set project "$GOOGLE_PROJECT_NAME"
-  printf "${GREEN}Creating worker ring $CLUSTER_NAME on Google Cloud... ${OFF}\n"
+  printf "${GREEN}Creating cluster $CLUSTER_NAME on Google Cloud... ${OFF}\n"
   # Known issue where you can't modify the name of the default node-pool; so
   # start the cluster as a 'default-pool', but delete this node pool at the end
   # https://serverfault.com/questions/822787/create-google-container-
@@ -200,47 +199,51 @@ else
   # Create the scheduler node: juypter notebook, bokeh dashboard, and all
   # other exposed services will sit here. This is the cluster's de-facto
   # entrypoint.
-  printf "${GREEN}Adding a Dask scheduler node... ${OFF}\n"
+  printf "${GREEN}Creating a Scheduler node (dask-scheduler node)... ${OFF}\n"
   gcloud container node-pools \
-  create "$CLUSTER_NAME-$ENTRY_POINT_NAME" --no-user-output-enabled \
+  create "$CLUSTER_NAME-$SCHEDULER_NAME" --no-user-output-enabled \
     --cluster="$CLUSTER_NAME" \
-    --disk-type="$SCHEDULER_DISK_TYPE" \
     --disk-size="$SCHEDULER_DISK_SIZE" \
     --num-nodes="1" \
-    --machine-type="$SCHEDULER_TYPE" \
-    --zone="$ZONE"
+    --machine-type="$SCHEDULER_MACHINE_TYPE" \
+    --zone="$ZONE" 
 
-  # Create a premptible worker ring: checkpoints are sent back to the
-  # scheduler, and the scheduler controls the start/teardown of jobs
+  # To avoid restrictions GPU/CPU ratio limitations (on both GCS and AWS),
+  # we seperate the machine-nodes the cards sit on and create "Towers"
+  if [[ "$NUM_TOWER_NODES" -gt "0" ]]; then
+    printf "${GREEN}Creating Tower nodes (ring-all-reduce network)... ${OFF}\n"
+    gcloud container node-pools \
+    create "$CLUSTER_NAME-$TOWER_NAME" --no-user-output-enabled \
+      --preemptible \
+      --cluster="$CLUSTER_NAME" \
+      --num-nodes="$NUM_TOWER_NODES" \
+      --machine-type="$TOWER_MACHINE_TYPE" \
+      --disk-size="$TOWER_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
+  fi
+
+  # We add 'carrier' machine nodes that serve as nodes filled with dask-workers
+  printf "${GREEN}Creating Carrier nodes (dask-worker network)... ${OFF}\n"
   gcloud container node-pools \
-  create "$CLUSTER_NAME-$WORKER_RING_NAME" --no-user-output-enabled \
-    --preemptible \
+  create "$CLUSTER_NAME-$CARRIER_NAME" --no-user-output-enabled \
     --cluster="$CLUSTER_NAME" \
-    --num-nodes="$NUM_WORKER_NODES" \
-    --machine-type="$MACHINE_TYPE" \
-    --disk-size="$MACHINE_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
+    --disk-size="$CARRIER_DISK_SIZE" \
+    --num-nodes="$NUM_CARRIER_NODES" \
+    --machine-type="$CARRIER_MACHINE_TYPE" \
+    --zone="$ZONE"
 
   # Delete the default node pool
   gcloud container node-pools \
   delete "default-pool" --quiet --cluster "$CLUSTER_NAME" --zone="$ZONE"
 fi
 
-if [[ -z "$DASK_WORKER_PROCESS" ]]; then
-  export DASK_WORKER_PROCESS=$MACHINE_CPU
-fi
-
 # Install NVIDIA drivers if using GPUs
-if [ "$MACHINE_GPUS" -gt "0" ]; then
+if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
   printf "${GREEN}Applying GPU device installer... ${OFF}\n"
   kubectl apply -f daemonset-preloaded.yaml
   kubectl label nodes $(kubectl get nodes -l \
-    cloud.google.com/gke-nodepool="$CLUSTER_NAME-$WORKER_RING_NAME" \
-    -o jsonpath="{.items[0].metadata.name}") hardware-type=NVIDIAGPU
+    cloud.google.com/gke-nodepool="$CLUSTER_NAME-$TOWER_NAME" \
+    -o jsonpath="{.items[0].metadata.name}") hardware-type=NVIDIAGPU --overwrite
 fi
-
-export DASK_WORKER_MEM=$(python -c "import os; \
-  print(float(os.environ['MACHINE_MEMORY']) / \
-  float(os.environ['DASK_WORKER_PROCESS']))")
 
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
 chmod 400 $TEMP_DIR/id_rsa
@@ -253,41 +256,45 @@ image:
   tag: $DOCKER_TAG
 
 ssh:
+  port: 3222
   hostKey: |-
 $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
   hostKeyPub: |-
 $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
-scheduler:
-  env:
-    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
-    BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
-    DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
-    DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
-
-worker:
-  number: $NUM_WORKER_NODES
-  podManagementPolicy: Parallel
-
+carrier:
+  number: $NUM_CARRIER_NODES
   resources:
-    limits:
-      nvidia.com/gpu: $MACHINE_GPUS
     requests:
-      nvidia.com/gpu: $MACHINE_GPUS
+      cpu: $(_get_cpu $CARRIER_MACHINE_CPU)
+      memory: $(_get_memory $CARRIER_MACHINE_MEMORY)
+    limits:
+      cpu: $(_get_cpu $CARRIER_MACHINE_CPU)
+      memory: $(_get_memory $CARRIER_MACHINE_MEMORY)
 
-  dask:
-    number: $DASK_WORKER_PROCESS
-    gpu: $MACHINE_GPUS
-    memory: $DASK_WORKER_MEM
-    threads: $DASK_THREADS_PER_PROCESS
+tower:
+  number: $NUM_TOWER_NODES
+  resources:
+    requests:
+      cpu: $(_get_cpu $TOWER_MACHINE_CPU)
+      memory: $(_get_memory $TOWER_MACHINE_MEMORY)
+      gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
+        echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
+    
+    limits:
+      cpu: $(_get_cpu $TOWER_MACHINE_CPU)
+      memory: $(_get_memory $TOWER_MACHINE_MEMORY)
+      gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
+        echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
 
-  env:
-    GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
-    BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
-    DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
-    DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
-    DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
-    DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
+env:
+  BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
+  GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
+  DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
+  DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
+  DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
+  DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
+
 EOF
 
 kubectl --namespace kube-system create serviceaccount tiller
@@ -301,15 +308,19 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm del --purge "$CLUSTER_NAME"
 fi
 
-helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
-# Note (1): This __MUST__ be done after helm install othwerise charts
-# will fail to bind due to taints/tolerations.
 kubectl taint nodes \
-  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$ENTRY_POINT_NAME" \
+  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$SCHEDULER_NAME" \
   "node"="scheduler":"NoSchedule" --overwrite
+
 kubectl taint nodes \
-  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$WORKER_RING_NAME" \
-  "node"="worker":"NoSchedule" --overwrite
+  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$TOWER_NAME" \
+  "node"="tower":"NoSchedule" --overwrite
+
+kubectl taint nodes \
+  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$CARRIER_NAME" \
+  "node"="carrier":"NoSchedule" --overwrite
+
+helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
 
 printf "${GREEN}Waiting for helm chart to finish installation... ${OFF} \n"
 export SCHEDULER_POD=$(waitfor kubectl get pods -l \
@@ -349,7 +360,7 @@ printf "${GREEN}Port-forward: \
 'kubectl port-forward $SCHEDULER_POD 8889 8686 8687 5056' \
 Use 'pkill kubectl -9' to kill. ${OFF}\n"
 printf "${GREEN}Access entrypoint: \
-'kubectl exec $SCHEDULER_POD -it bash' ${OFF}\n"
+'kubectl exec $SCHEDULER_POD -it /bin/bash' ${OFF}\n"
 echo ""
 
 printf "${GREEN}Stream logs: \
@@ -359,15 +370,16 @@ printf "${GREEN}Copy trials/checkpoints: \
 $PROJECT_DIR/trials/$CLUSTER_NAME' ${OFF}\n"
 echo ""
 
-printf "${GREEN}Switch to master branch across all machines: \
+printf "${GREEN}Switch to master branch across all towers: \
 'repo checkout master' ${OFF}\n"
-printf "${GREEN}Update the repository across all machines: \
+printf "${GREEN}Update the repository across all towers: \
 'repo update master' ${OFF}\n"
-printf "${GREEN}Go to machine node zero: \
-'goto 0' ${OFF}\n"
+printf "${GREEN}Go to tower zero (rank-zero): \
+'goto tower 0' ${OFF}\n"
+printf "${GREEN}Go to carrier zero: \
+'goto carrier 0' ${OFF}\n"
 echo ""
 
-pkill kubectl -9  # kill any previous instances
-kubectl exec "$SCHEDULER_POD" -it bash
+kubectl exec $SCHEDULER_POD -it /bin/bash
 
 # EOF
