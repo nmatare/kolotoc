@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   graphviz \
   fonts-liberation \
   nano \
+  net-tools \
   openssh-client \
   openssh-server \
   sudo && \

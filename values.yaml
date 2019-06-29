@@ -17,25 +17,37 @@ ssh:
   hostKeyPub: |-
     #  ssh-rsa YourPublicKey
 
-useHostNetwork: true
-useHostPID: false
-
 scheduler:
   schedulerPort: 8686
   dashboardPort: 8687
   jupyterPort: 8889
   tensorboardPort: 5056
+  resources:
+    requests:
+      cpu: "1"
+      memory: 5G
+    limits:
+      cpu: "1"
+      memory: 5G
 
-worker:
+carrier:
   number: 1
-  podManagementPolicy: Parallel
-  resources: {}
-    # limits:
-    #   nvidia.com/gpu: 0
-    # requests:
-    #   nvidia.com/gpu: 0
-  dask:
-    number: 1
-    gpu: 0
-    threads: 1
-    memory: "2GB"
+  resources: 
+    requests:
+      cpu: 1
+      memory: 6G
+    limits:
+      cpu: 1
+      memory: 6G
+
+tower:
+  number: 1
+  resources:
+    requests:
+      cpu: 1
+      memory: 6G
+      nvidia.com/gpu: 0
+    limits:
+      cpu: 1
+      memory: 6G
+      nvidia.com/gpu: 0
