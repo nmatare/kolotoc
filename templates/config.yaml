@@ -196,7 +196,7 @@ data:
 
   tower.run: |
     #!/bin/bash
-    DASK_WORKER_MEMORY=$(python -c "print(round(float('$TOWER_MACHINE_MEMORY'.strip('Gi')) / ($TOWER_MACHINE_CPU), 2))")
+    DASK_WORKER_MEMORY=$(python -c "print(round(float('$TOWER_MACHINE_MEMORY'.strip('G')) / ($TOWER_MACHINE_CPU), 2))")
     
     if [[ -z "$TOWER_MACHINE_GPU" ]]; then
       DASK_WORKER_GPU=0
@@ -223,7 +223,7 @@ data:
 
     DASK_WORKERS=$(python -c "from math import ceil; print(ceil($CARRIER_MACHINE_CPU))")
     DASK_WORKER_CPU=$(python -c "print(round($CARRIER_MACHINE_CPU / $DASK_WORKERS, 2))")
-    DASK_WORKER_MEMORY=$(python -c "print(round(float('$CARRIER_MACHINE_MEMORY'.strip('Gi')) / ($CARRIER_MACHINE_CPU), 2))")
+    DASK_WORKER_MEMORY=$(python -c "print(round(float('$CARRIER_MACHINE_MEMORY'.strip('G')) / ($CARRIER_MACHINE_CPU), 2))")
 
     source activate $PROJECT_NAME
     echo "Launching carrier (worker) dask-worker... "

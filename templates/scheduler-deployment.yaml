@@ -19,9 +19,9 @@ spec:
         release: {{ .Release.Name }}
         role: scheduler
     spec:
-      # hostNetwork: True
-      # dnsPolicy: ClusterFirstWithHostNet
-      # hostPID: False
+      hostNetwork: True
+      dnsPolicy: ClusterFirstWithHostNet
+      hostPID: False
       volumes:
       - name: {{ template "kolotoc.fullname" . }}-config
         configMap:

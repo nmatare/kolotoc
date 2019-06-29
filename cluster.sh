@@ -151,7 +151,7 @@ declare -A AVAL_MACHINE_TYPES=(
 # We subtract cpu/memory from the machine nodes max available memory to ensure
 # that other kubernetes services may be scheduled alongside carriers and towers.
 function _get_memory(){
-  echo "$(python -c "print(round(float($1) * 0.75, 2))")Gi"
+  echo "$(python -c "print(round(float($1) * 0.75, 2))")G"
 }
 
 function _get_cpu(){
@@ -278,13 +278,12 @@ tower:
     requests:
       cpu: $(_get_cpu $TOWER_MACHINE_CPU)
       memory: $(_get_memory $TOWER_MACHINE_MEMORY)
-      gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
+      nvidia.com/gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
         echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
-    
     limits:
       cpu: $(_get_cpu $TOWER_MACHINE_CPU)
       memory: $(_get_memory $TOWER_MACHINE_MEMORY)
-      gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
+      nvidia.com/gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
         echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
 
 env:

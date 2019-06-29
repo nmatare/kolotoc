@@ -6,7 +6,7 @@ This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernet
 
 Additionally, Kolotoc creates a scheduler node outside of the ring-all-reduce-network as a Kubernetes deployment. The scheduler node serves as an entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
 
-Finally, Kolotoc creates "Carriers" or machine nodes that deploy [dask-workers](https://distributed.dask.org/en/latest/worker.html) proportional to the number of logical cores as statefulsets.
+Finally, Kolotoc creates "Carriers" or machine nodes that deploy [dask-workers](https://distributed.dask.org/en/latest/worker.html) as as statefulsets proportional to the number of logical cores.
 
 Some helpful commands:
 * `goto tower 0` -  Go to tower zero (rank-zero)
@@ -17,9 +17,9 @@ Some helpful commands:
 ## Prerequisites
 
 - Kubernetes cluster v1.8+
+- Google Cloud SDK 236.0.0
 - jq 1.5-1
 - uuidgen-runtime 2.31.1
-- Google Cloud SDK 236.0.0
 
 ## Quick deployment on Google Cloud
 

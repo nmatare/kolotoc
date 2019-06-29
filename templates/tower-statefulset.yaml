@@ -74,6 +74,7 @@ spec:
             path: id_rsa
           - key: host-key-pub
             path: authorized_keys
+
       containers:
       - name: tower
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -128,12 +129,12 @@ spec:
         resources:
           requests:
             cpu: {{ .Values.tower.resources.requests.cpu }}
-            memory: 4Gi #  {{ .Values.tower.resources.requests.memory }}
-            nvidia.com/gpu: {{ .Values.tower.resources.requests.memory }}
+            memory: {{ .Values.tower.resources.requests.memory }}
+            nvidia.com/gpu: {{ .Values.tower.resources.requests.gpu }}
           limits:
             cpu: {{ .Values.tower.resources.limits.cpu }}
-            memory: 4Gi # {{ .Values.tower.resources.limits.memory }}
-            nvidia.com/gpu: {{ .Values.tower.resources.requests.memory }}
+            memory: {{ .Values.tower.resources.limits.memory }}
+            nvidia.com/gpu: {{ .Values.tower.resources.requests.gpu }}
       tolerations:
         - key: "node"
           operator: "Equal"
