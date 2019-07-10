@@ -47,9 +47,6 @@ spec:
           - key: carrier.config
             path: carrier.hostfile
             mode: 438
-          - key: ssh.readiness
-            path: check.sh
-            mode: 365
           - key: ssh.wait
             path: wait.sh
             mode: 365   
@@ -82,10 +79,8 @@ spec:
           value: "{{ .Values.ssh.port }}"
         - name: CUDA_STUB_LOCATION
           value: "{{ .Values.cuda.stubs }}"           
-        - name: CARRIER_MACHINE_CPU
-          value: "{{ .Values.carrier.resources.requests.cpu }}"
-        - name: CARRIER_MACHINE_MEMORY
-          value: "{{ .Values.carrier.resources.requests.memory }}"
+        - name: NUM_DASK_WORKERS
+          value: "{{ .Values.carrier.workers }}"
         - name: DASK_SCHEDULER_ADDRESS
           value: {{ template "kolotoc.fullname" . }}-scheduler
         - name: DASK_SCHEDULER_PORT
@@ -114,21 +109,6 @@ spec:
                 . /kolotoc/generated/cuda.sh && 
                 . /kolotoc/generated/wait.sh && 
                 . /kolotoc/generated/run.sh"]
-        readinessProbe:
-          exec:
-            command:
-            - /kolotoc/generated/check.sh
-          initialDelaySeconds: 1
-          periodSeconds: 2
-        resources:
-          requests:
-            cpu: "{{ .Values.carrier.resources.requests.cpu }}"
-            memory: "{{ .Values.carrier.resources.requests.memory }}"
-            nvidia.com/gpu: 0
-          limits:
-            cpu: "{{ .Values.carrier.resources.limits.cpu }}"
-            memory: "{{ .Values.carrier.resources.limits.memory }}"
-            nvidia.com/gpu: 0
       tolerations:
         - key: "node"
           operator: "Equal"

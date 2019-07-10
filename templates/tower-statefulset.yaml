@@ -53,9 +53,6 @@ spec:
           - key: cuda.config
             path: cuda.sh
             mode: 365
-          - key: ssh.readiness
-            path: check.sh
-            mode: 365
           - key: ssh.wait
             path: wait.sh
             mode: 365 
@@ -74,7 +71,6 @@ spec:
             path: id_rsa
           - key: host-key-pub
             path: authorized_keys
-
       containers:
       - name: tower
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -86,16 +82,8 @@ spec:
           value: "{{ .Values.ssh.port }}"
         - name: CUDA_STUB_LOCATION
           value: "{{ .Values.cuda.stubs }}"
-        - name: TOWER_MACHINE_CPU
-          value: "{{ .Values.tower.resources.requests.cpu }}"
-        - name: TOWER_MACHINE_MEMORY
-          value: "{{ .Values.tower.resources.requests.memory }}"
-        - name: TOWER_MACHINE_GPU
-          value: "{{ .Values.tower.resources.requests.gpu }}"
         - name: DASK_SCHEDULER_ADDRESS
           value: {{ template "kolotoc.fullname" . }}-scheduler
-        - name: DASK_SCHEDULER_PORT
-          value: "{{ .Values.scheduler.schedulerPort }}"
      {{- if .Values.env }}
      {{- range $key, $value := .Values.env }}
         - name: "{{ $key }}"
@@ -120,21 +108,11 @@ spec:
                 . /kolotoc/generated/cuda.sh && 
                 . /kolotoc/generated/wait.sh &&       
                 . /kolotoc/generated/run.sh"]
-        readinessProbe:
-          exec:
-            command:
-            - /kolotoc/generated/check.sh
-          initialDelaySeconds: 1
-          periodSeconds: 2
         resources:
           requests:
-            cpu: {{ .Values.tower.resources.requests.cpu }}
-            memory: {{ .Values.tower.resources.requests.memory }}
-            nvidia.com/gpu: {{ .Values.tower.resources.requests.gpu }}
+            nvidia.com/gpu: {{ .Values.tower.gpus }}
           limits:
-            cpu: {{ .Values.tower.resources.limits.cpu }}
-            memory: {{ .Values.tower.resources.limits.memory }}
-            nvidia.com/gpu: {{ .Values.tower.resources.requests.gpu }}
+            nvidia.com/gpu: {{ .Values.tower.gpus }}            
       tolerations:
         - key: "node"
           operator: "Equal"

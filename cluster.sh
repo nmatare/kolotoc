@@ -11,10 +11,12 @@ function usage {
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] "
   echo "               [--num-carriers num_carrier_nodes]"
-  echo "               [--carrier-type carrier_machine_type]"
+  echo "               [--carrier-type carrier_type]"
 
-  echo "               [--num-towers tower_machine_type]"
-  echo "               [--num-gpus tower_machine_gpus]"
+  echo "               [--num-towers num_tower_nodes]"
+  echo "               [--tower-type tower_machine_type]"
+  echo "               [--gpus-per-tower gpus_per_tower]"
+  echo "               [--gpu-type gpu_type]"
 
   echo "               [--help]"
 
@@ -24,15 +26,16 @@ function usage {
   echo "  num_carrier_nodes:  number of carriers (nodes with dask-workers) to launch."
   echo "  carrier_type:       the machine type used by carriers (given by Google Cloud Compute). "
 
-  echo "  num_towers:         the number of ring-all-reduce machine nodes to launch. "
-  echo "  node_gpus:          the number gpus to attach to each tower. (default: 0)"
+  echo "  num_tower_nodes:    the number of ring-all-reduce machine nodes to launch. "
+  echo "  num-dask-workers:   optional control over the number of dask-workers per carrier node"
+  echo "  gpus_per_tower:     the number gpus to attach to each tower. (default: 0)"
+  echo "  gpu_type:           the type of gpu to attach to each tower. (default: nvidia-tesla-k80)"
   echo "  help:               print setup. "
 }
 
 # Image Config
 PROJECT_NAME="${PROJECT_NAME:-kolotoc}"
 CLUSTER_NAME="$PROJECT_NAME-cluster-$(uuidgen | cut -c1-8)"
-ZONE="us-east1-d"
 DOCKER_REPOSITORY="${DOCKER_REPOSITORY:-nmatare/kolotoc}"
 DOCKER_TAG="${DOCKER_TAG:-latest}"
 
@@ -46,21 +49,28 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 
 # Carrier config
 CARRIER_NAME="carrier"
-CARRIER_MACHINE_TYPE="n1-standard-2"
+CARRIER_MACHINE_TYPE="n1-highcpu-2"
 CARRIER_DISK_SIZE=50
 NUM_CARRIER_NODES=1
 
 # Tower config
 TOWER_NAME="tower"
-TOWER_MACHINE_TYPE="n1-standard-2"
+TOWER_MACHINE_TYPE="n1-highmem-2"
 TOWER_GPU_TYPE="nvidia-tesla-k80"
+ZONE="us-east4-a"
+# k80/t4 -  us-east1-d
+# p100 - us-east1-b
+# p4   - us-east4-a
 TOWER_DISK_SIZE=50
 TOWER_MACHINE_GPUS=0
 NUM_TOWER_NODES=1
 
 # Dask config
+NUM_DASK_WORKERS=""
 DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES=100
 DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE=1  # use kubernetes to manage
+DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL=100
+DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE="0.90"
 DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=300
 DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=420
 # https://github.com/dask/dask/blob/master/docs/source/configuration.rst
@@ -90,9 +100,21 @@ setargs(){
         shift
         NUM_TOWER_NODES=$1
         ;;
-      "--num-gpus")
+      "--tower-type")
+        shift
+        TOWER_MACHINE_TYPE=$1
+        ;;        
+      "--gpus-per-tower")
         shift
         TOWER_MACHINE_GPUS=$1
+        ;;
+      "--gpu-type")
+        shift
+        TOWER_GPU_TYPE=$1
+        ;;
+      "--num-dask-workers")
+        shift
+        NUM_DASK_WORKERS=$1
         ;;
       "--help")
         usage
@@ -148,15 +170,6 @@ declare -A AVAL_MACHINE_TYPES=(
   ["n1-ultramem-160"]="96 3844"
   ["n1-megamem-96"]="96 1433.6")
 
-# We subtract cpu/memory from the machine nodes max available memory to ensure
-# that other kubernetes services may be scheduled alongside carriers and towers.
-function _get_memory(){
-  echo "$(python -c "print(round(float($1) * 0.75, 2))")G"
-}
-
-function _get_cpu(){
-  python -c "print(round(float($1) * 0.75, 2))"
-}
 
 TOWER_MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$TOWER_MACHINE_TYPE]}" | awk '{print $1}')
 TOWER_MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$TOWER_MACHINE_TYPE]}" | awk '{print $2}')
@@ -173,17 +186,18 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
   ACCELERATOR="--accelerator type=$TOWER_GPU_TYPE,count=$TOWER_MACHINE_GPUS --zone=$ZONE"
 fi
 
-if [[ -z "$CARRIER_MACHINE_CPU" || -z "$CARRIER_MACHINE_MEMORY" ]]; then
-  printf "${RED}Could not find machine type $CARRIER_MACHINE_CPU on GC! ${OFF}\n"
-  exit 1
-fi
-
 CLUSTER="$(gcloud container clusters list --format="value(name)")"
 
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   printf "${GREEN}Updating existing cluster $CLUSTER_NAME... ${OFF}\n"
   kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
 else
+
+  if [[ -z "$CARRIER_MACHINE_CPU" || -z "$CARRIER_MACHINE_MEMORY" ]]; then
+    printf "${RED}Could not find machine type $CARRIER_MACHINE_TYPE on GC!${OFF}\n"
+    exit 1
+  fi
+
   gcloud config set project "$GOOGLE_PROJECT_NAME"
   printf "${GREEN}Creating cluster $CLUSTER_NAME on Google Cloud... ${OFF}\n"
   # Known issue where you can't modify the name of the default node-pool; so
@@ -225,6 +239,7 @@ else
   printf "${GREEN}Creating Carrier nodes (dask-worker network)... ${OFF}\n"
   gcloud container node-pools \
   create "$CLUSTER_NAME-$CARRIER_NAME" --no-user-output-enabled \
+    --preemptible \
     --cluster="$CLUSTER_NAME" \
     --disk-size="$CARRIER_DISK_SIZE" \
     --num-nodes="$NUM_CARRIER_NODES" \
@@ -242,7 +257,7 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
   kubectl apply -f daemonset-preloaded.yaml
   kubectl label nodes $(kubectl get nodes -l \
     cloud.google.com/gke-nodepool="$CLUSTER_NAME-$TOWER_NAME" \
-    -o jsonpath="{.items[0].metadata.name}") hardware-type=NVIDIAGPU --overwrite
+    -o jsonpath="{.items[0].metadata.name}") hardware-type=NVIDIAGPU  --overwrite
 fi
 
 ssh-keygen -qN "" -f $TEMP_DIR/id_rsa
@@ -264,27 +279,13 @@ $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
 
 carrier:
   number: $NUM_CARRIER_NODES
-  resources:
-    requests:
-      cpu: $(_get_cpu $CARRIER_MACHINE_CPU)
-      memory: $(_get_memory $CARRIER_MACHINE_MEMORY)
-    limits:
-      cpu: $(_get_cpu $CARRIER_MACHINE_CPU)
-      memory: $(_get_memory $CARRIER_MACHINE_MEMORY)
+  workers: $(if [[ ! -z "$NUM_DASK_WORKERS" ]]; then 
+    echo "$NUM_DASK_WORKERS"; else echo "$CARRIER_MACHINE_CPU" ; fi)
 
 tower:
   number: $NUM_TOWER_NODES
-  resources:
-    requests:
-      cpu: $(_get_cpu $TOWER_MACHINE_CPU)
-      memory: $(_get_memory $TOWER_MACHINE_MEMORY)
-      nvidia.com/gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
-        echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
-    limits:
-      cpu: $(_get_cpu $TOWER_MACHINE_CPU)
-      memory: $(_get_memory $TOWER_MACHINE_MEMORY)
-      nvidia.com/gpu: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
-        echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
+  gpus: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
+    echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
 
 env:
   BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
@@ -292,7 +293,9 @@ env:
   DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
   DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
   DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
-  DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE    
+  DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
+  DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
+  DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL: $DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL
 
 EOF
 
@@ -302,10 +305,10 @@ kubectl create clusterrolebinding tiller \
   --serviceaccount kube-system:tiller
 
 rm -rf "$HOME/.helm";
-helm init --service-account tiller --upgrade --wait;
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm del --purge "$CLUSTER_NAME"
 fi
+helm init --service-account tiller --upgrade --wait;
 
 kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$SCHEDULER_NAME" \

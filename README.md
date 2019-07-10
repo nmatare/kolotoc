@@ -1,12 +1,12 @@
 ## Introduction
 
-This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernetes managed cluster capable of deploying both a distributed ring-all-reduce training framework such as [Horovod](https://eng.uber.com/horovod/) and a flexible data processing framework such as [Dask](https://dask.org/)
+This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernetes managed cluster which deploys a distributed ring-all-reduce neural network training framework [(Horovod)](https://eng.uber.com/horovod/) alongside a flexible task scheduling system [(Dask)](https://dask.org/)
 
-[Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each rank in the ring-all-reduce network is referred to as a "Tower". Towers are not directly connected to the Dask network.
+[Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each rank in the ring-all-reduce network is referred to as a "Tower". Towers are connected to the dask network via "Sentinel" dask-workers who simply monitor the state of the machine-node during training.
 
-Additionally, Kolotoc creates a scheduler node outside of the ring-all-reduce-network as a Kubernetes deployment. The scheduler node serves as an entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
+Kolotoc creates a scheduler node outside of the ring-all-reduce-network as a Kubernetes deployment. The scheduler node serves as an entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
 
-Finally, Kolotoc creates "Carriers" or machine nodes that deploy [dask-workers](https://distributed.dask.org/en/latest/worker.html) as as statefulsets proportional to the number of logical cores.
+Finally, Kolotoc creates "Carriers" or machine nodes that deploy [dask-workers](https://distributed.dask.org/en/latest/worker.html) as as statefulsets equally proportional to the number of logical cores.
 
 Some helpful commands:
 * `goto tower 0` -  Go to tower zero (rank-zero)
@@ -23,11 +23,11 @@ Some helpful commands:
 
 ## Quick deployment on Google Cloud
 
-  This repository contains `cluster.sh`, a limited convenience script to automate the startup and teardown of clusters running Kolotoc. Currently, `cluster.sh` only supports Google Cloud, Tensorflow, and is only tested on Ubuntu 18.04.
+  This repository contains `cluster.sh`, a limited convenience script to automate the startup and teardown of clusters running Kolotoc. Currently, `cluster.sh` only supports Google Cloud and is only tested on Ubuntu 18.04.
 
 ### Start Cluster
 
-Run `./cluster.sh ---num-towers 4 num-carriers 1 --carrier-type n1-standard-4` to start a four rank ring-all-reduce network equipped with four dask-workers. You will need to authenticate via the [Google Cloud SDK](https://cloud.google.com/sdk/) or supply a `service-file` parameter.  
+Run `./cluster.sh ---num-towers 4 num-carriers 1 --carrier-type n1-standard-4` to start a four rank ring-all-reduce network equipped with four dask-workers. You will need to authenticate via the [Google Cloud SDK](https://cloud.google.com/sdk/).
 
 Type `./cluster.sh --help` for a list of available options:
 
@@ -37,7 +37,8 @@ Type `./cluster.sh --help` for a list of available options:
 | `num-towers`    | number of ring-all-reduce ranks | `1` |
 | `num-gpus`      | number of GPUs to attach per rank | `0` |
 | `num-carriers`  | number of dask-worker machines | `1` |
-| `carrier-type`  | dask-worker machine types | `n1-standard-4` |
+| `carrier-type`  | dask-worker machine type | `n1-standard-4` |
+| `tower-type`    | training machine type | `n1-standard-4` |
 
 ### Interacting with the Cluster
 

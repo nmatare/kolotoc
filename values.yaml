@@ -24,30 +24,16 @@ scheduler:
   tensorboardPort: 5056
   resources:
     requests:
-      cpu: "1"
+      cpu: 1
       memory: 5G
     limits:
-      cpu: "1"
+      cpu: 1
       memory: 5G
 
 carrier:
   number: 1
-  resources: 
-    requests:
-      cpu: 1
-      memory: 6G
-    limits:
-      cpu: 1
-      memory: 6G
+  workers: 1
 
 tower:
   number: 1
-  resources:
-    requests:
-      cpu: 1
-      memory: 6G
-      nvidia.com/gpu: 0
-    limits:
-      cpu: 1
-      memory: 6G
-      nvidia.com/gpu: 0
+  gpus: 0

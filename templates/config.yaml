@@ -3,9 +3,9 @@
 {{- $carrierNumber := .Values.carrier.number -}}
 {{- $name := include "kolotoc.fullname" . }}
 {{- $slots := 1 }}
-{{- if index .Values.tower.resources "nvidia.com/gpu" }}
-{{- $slots := index .Values.tower.resources "nvidia.com/gpu" }}
-{{- end }}
+#{{- if index .Values.tower "nvidia.com/gpu" }}
+#{{- $slots := index .Values.tower.gpus "nvidia.com/gpu" }}
+#{{- end }}
 
 apiVersion: v1
 kind: ConfigMap
@@ -36,20 +36,20 @@ data:
     set -a
 
     export NCCL_SOCKET_IFNAME=^lo,docker0
+    export LD_LIBRARY_PATH=/usr/local/cuda/extras/CUPTI/lib64/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
     if [[ ! -z "$(command -v nvidia-smi)" ]]; then
       export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
       export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/nvidia/bin:/usr/local/cuda/bin/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
       
-      echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> /etc/environment
-      sed -i "/\<PATH\>/cPATH=$PATH" /etc/environment
     else 
+      export LD_LIBRARY_PATH=$CUDA_STUB_LOCATION/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
       ldconfig $CUDA_STUB_LOCATION
     fi
 
-  ssh.readiness: |
-    #!/bin/bash
-    ssh localhost ls
+    echo "NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}" >> /etc/environment
+    echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> /etc/environment
+    sed -i "/\<PATH\>/cPATH=$PATH" /etc/environment
 
   ssh.wait: |
     #!/bin/bash
@@ -99,7 +99,7 @@ data:
 
   scheduler.run: |
     #!/bin/bash
-    set -x
+    set -xve
 
     function repo(){
 
@@ -171,7 +171,25 @@ data:
       esac
     }
 
-    declare -f repo goto >> /root/.bashrc
+    function reboot_dask(){
+      echo "Rebooting the Dask cluster... "
+      python -c "from dask.distributed import Client; \
+        Client('*:$DASK_SCHEDULER_PORT').restart()"
+
+      pkill dask-scheduler > /dev/null 2>&1
+      sleep 1
+      dask-scheduler --host "*" \
+        --port=$DASK_SCHEDULER_PORT \
+        --dashboard-address="*:$DASK_DASHBOARD_PORT" > /dev/null 2>&1 &
+      echo "Success! The Dask cluster was rebooted. "
+    }
+
+    function monitor_gpus(){
+      pip install git+https://github.com/wookayin/gpustat-web.git
+      python -m gpustat_web --port 48109 /kolotoc/generated/tower.hostfile
+    }
+
+    declare -f repo goto reboot_dask >> /root/.bashrc
     ldconfig $CUDA_STUB_LOCATION
 
     source activate $PROJECT_NAME
@@ -196,48 +214,24 @@ data:
 
   tower.run: |
     #!/bin/bash
-    DASK_WORKER_MEMORY=$(python -c "print(round(float('$TOWER_MACHINE_MEMORY'.strip('G')) / ($TOWER_MACHINE_CPU), 2))")
-    
-    if [[ -z "$TOWER_MACHINE_GPU" ]]; then
-      DASK_WORKER_GPU=0
-    else
-      DASK_WORKER_GPU="$TOWER_MACHINE_GPU"
-    fi
-
-    source activate $PROJECT_NAME
-    echo "Launching tower (sentinel) dask-worker... "
-
-    dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
-      --name=tower-sentinel-$(hostname -i) \
-      --resources="CPU=$TOWER_MACHINE_CPU MEM=$DASK_WORKER_MEMORY GPU=$DASK_WORKER_GPU" \
-      --memory-limit="$DASK_WORKER_MEMORY GB" \
-      --local-directory=/tmp \
-      --nanny \
-      --no-bokeh \
-      --nthreads=1 & 
-
     sleep infinity
 
   carrier.run: |
     #!/bin/bash
-
-    DASK_WORKERS=$(python -c "from math import ceil; print(ceil($CARRIER_MACHINE_CPU))")
-    DASK_WORKER_CPU=$(python -c "print(round($CARRIER_MACHINE_CPU / $DASK_WORKERS, 2))")
-    DASK_WORKER_MEMORY=$(python -c "print(round(float('$CARRIER_MACHINE_MEMORY'.strip('G')) / ($CARRIER_MACHINE_CPU), 2))")
-
+    set -x
     source activate $PROJECT_NAME
-    echo "Launching carrier (worker) dask-worker... "
+
+    export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
 
     dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
       --name=carrier-worker-$(hostname -i) \
-      --nprocs=$DASK_WORKERS \
-      --resources="CPU=$DASK_WORKER_CPU MEM=$DASK_WORKER_MEMORY GPU=0" \
-      --memory-limit="$DASK_WORKER_MEMORY GB" \
+      --nprocs=$NUM_DASK_WORKERS \
+      --nthreads=1 \
+      --memory-limit="$DASK_WORKER_MEM GB" \
+      --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
       --local-directory=/tmp \
       --reconnect \
       --nanny \
-      --no-bokeh \
-      --nthreads=1 &
+      --no-bokeh &
 
     sleep infinity
-

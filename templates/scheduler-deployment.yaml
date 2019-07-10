@@ -95,15 +95,6 @@ spec:
         command: ["/bin/bash", "-c"]
         args: [". /kolotoc/generated/ssh.sh && 
                 . /kolotoc/generated/run.sh"]
-        resources:
-          requests:
-            cpu: "{{ .Values.scheduler.resources.requests.cpu }}"
-            memory: "{{ .Values.scheduler.resources.requests.memory }}"
-            nvidia.com/gpu: 0
-          limits:
-            cpu: "{{ .Values.scheduler.resources.limits.cpu }}"
-            memory: "{{ .Values.scheduler.resources.limits.memory }}"
-            nvidia.com/gpu: 0
       tolerations:
         - key: "node"
           operator: "Equal"
