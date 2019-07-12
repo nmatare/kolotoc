@@ -73,7 +73,7 @@ $ helm install --values ~/values.yaml nmatare/kolotoc
 
 ## Nice-to-have future features
   - [ ] Build [MPI-ULFM2](http://fault-tolerance.org/) into the Dockerfile to support fault tolerance;
-  - [ ] Add support Azure cloud to enable infiniband network interfaces (Microsoft is one of the few cloud providers
+  - [ ] Add support for Microsoft  Azure cloud to enable infiniband network interfaces (Microsoft is one of the few cloud     providers
         to provide HPC supprt.
   - [ ] Enable and build Horovod/OpenMPI with [openucx](https://github.com/openucx/ucx) protocol.
   - [ ] Add the ability to scale up/down the cluster based upon workload; and
