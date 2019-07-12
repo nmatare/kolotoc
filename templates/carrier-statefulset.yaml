@@ -1,24 +1,24 @@
----
+
 apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
-  name: {{ template "kolotoc.fullname" . }}
+  name: {{ template "kolotoc.fullname" . }}-carrier
   labels:
     app: {{ template "kolotoc.name" . }}
     chart: {{ template "kolotoc.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
-    role: worker
+    role: carrier
 spec:
+  replicas: {{ .Values.carrier.number }}
   selector:
     matchLabels:
       app: {{ template "kolotoc.name" . }}
       release: {{ .Release.Name }}
       heritage: {{ .Release.Service }}
-      role: worker
-  serviceName: {{ template "kolotoc.fullname" . }}
-  podManagementPolicy: {{ .Values.worker.podManagementPolicy }}
-  replicas: {{ .Values.worker.number }}
+      role: carrier
+  serviceName: {{ template "kolotoc.fullname" . }}-carrier
+  podManagementPolicy: Parallel
   template:
     metadata:
       labels:
@@ -26,32 +26,37 @@ spec:
         chart: {{ template "kolotoc.chart" . }}
         release: {{ .Release.Name }}
         heritage: {{ .Release.Service }}
-        role: worker
+        role: carrier
     spec:
       selector:
         matchLabels:
           app: {{ template "kolotoc.name" . }}
           release: {{ .Release.Name }}
-          role: worker
-      {{- if .Values.useHostNetwork }}
-      hostNetwork: {{ .Values.useHostNetwork }}
+          role: carrier
+      hostNetwork: True
+      hostPID: False
       dnsPolicy: ClusterFirstWithHostNet
-      {{- end }}
-      {{- if .Values.useHostPID }}
-      hostPID: {{ .Values.useHostPID }}
-      {{- end }}
       volumes:
       - name: {{ template "kolotoc.fullname" . }}-config
         configMap:
           name: {{ template "kolotoc.fullname" . }}
           items:
-          - key: hostfile.config
-            path: hostfile
+          - key: scheduler.config
+            path: scheduler.hostfile
             mode: 438
-          - key: ssh.readiness
-            path: check.sh
+          - key: carrier.config
+            path: carrier.hostfile
+            mode: 438
+          - key: ssh.wait
+            path: wait.sh
+            mode: 365   
+          - key: ssh.config
+            path: ssh.sh
             mode: 365
-          - key: worker.run
+          - key: cuda.config
+            path: cuda.sh
+            mode: 365
+          - key: carrier.run
             path: run.sh
             mode: 365
       - name: {{ template "kolotoc.fullname" . }}-secret
@@ -63,36 +68,29 @@ spec:
             path: id_rsa
           - key: host-key-pub
             path: authorized_keys
-{{- if .Values.worker.volumes }}
-{{ toYaml .Values.worker.volumes | indent  6 }}
-{{- end }}
       containers:
-      - name: worker
+      - name: kolotoc-carrier
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         env:
         - name: PROJECT_NAME
           value: "{{ .Values.projectName }}"
-        - name: HOST_SSH_PORT
+        - name: OPENMPI_SSH_PORT
           value: "{{ .Values.ssh.port }}"
         - name: CUDA_STUB_LOCATION
-          value: "{{ .Values.cuda.stubs }}"
+          value: "{{ .Values.cuda.stubs }}"           
+        - name: NUM_DASK_WORKERS
+          value: "{{ .Values.carrier.workers }}"
+        - name: DASK_SCHEDULER_ADDRESS
+          value: {{ template "kolotoc.fullname" . }}-scheduler
         - name: DASK_SCHEDULER_PORT
           value: "{{ .Values.scheduler.schedulerPort }}"
-        - name: DASK_WORKER_PROCESS
-          value: "{{ .Values.worker.dask.number }}"
-        - name: DASK_WORKER_GPU
-          value: "{{ .Values.worker.dask.gpu }}"
-        - name: DASK_WORKER_MEM
-          value: "{{ .Values.worker.dask.memory }}"
-        - name: DASK_THREADS_PER_PROCESS
-          value: "{{ .Values.worker.dask.threads }}"
-       {{- if .Values.worker.env }}
-       {{- range $key, $value := .Values.worker.env }}
+     {{- if .Values.env }}
+     {{- range $key, $value := .Values.env }}
         - name: "{{ $key }}"
           value: "{{ $value }}"
-       {{- end }}
-       {{- end }}
+     {{- end }}
+     {{- end }}
         securityContext:
           privileged: true
         ports:
@@ -102,28 +100,17 @@ spec:
           mountPath: /kolotoc/generated
         - name: {{ template "kolotoc.fullname" . }}-secret
           readOnly: true
-          mountPath: "/etc/secret-volume"
+          mountPath: "/etc/secret-volume"          
 {{- if .Values.volumeMounts }}
 {{ toYaml .Values.volumeMounts | indent 8 }}
 {{- end }}
-        command:
-        - /kolotoc/generated/run.sh
-        args:
-{{ toYaml .Values.worker.args | indent 10 }}
-        readinessProbe:
-          exec:
-            command:
-            - /kolotoc/generated/check.sh
-          initialDelaySeconds: 1
-          periodSeconds: 2
-        resources:
-{{ toYaml .Values.worker.resources | indent 10 }}
+        command: ["/bin/bash", "-c"]
+        args: [". /kolotoc/generated/ssh.sh && 
+                . /kolotoc/generated/cuda.sh && 
+                . /kolotoc/generated/wait.sh && 
+                . /kolotoc/generated/run.sh"]
       tolerations:
         - key: "node"
           operator: "Equal"
-          value: "worker"
-          effect: "NoSchedule"
-        - key: "nvidia.com/gpu"
-          operator: "Equal"
-          value: "present"
+          value: "carrier"
           effect: "NoSchedule"

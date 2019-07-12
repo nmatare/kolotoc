@@ -1,0 +1,102 @@
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "kolotoc.fullname" . }}-scheduler
+  labels:
+    app: {{ template "kolotoc.name" . }}
+    chart: {{ template "kolotoc.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Deployment }}
+    role: scheduler
+spec:
+  replicas: 1
+  serviceName: {{ template "kolotoc.fullname" . }}-scheduler
+  template:
+    metadata:
+      labels:
+        app: {{ template "kolotoc.name" . }}
+        release: {{ .Release.Name }}
+        role: scheduler
+    spec:
+      hostNetwork: True
+      dnsPolicy: ClusterFirstWithHostNet
+      hostPID: False
+      volumes:
+      - name: {{ template "kolotoc.fullname" . }}-config
+        configMap:
+          name: {{ template "kolotoc.fullname" . }}
+          items:
+          - key: scheduler.config
+            path: scheduler.hostfile
+            mode: 438
+          - key: tower.config
+            path: tower.hostfile
+            mode: 438
+          - key: carrier.config
+            path: carrier.hostfile
+            mode: 438
+          - key: ssh.config
+            path: ssh.sh
+            mode: 365
+          - key: scheduler.run
+            path: run.sh
+            mode: 365
+      - name: {{ template "kolotoc.fullname" . }}-secret
+        secret:
+          secretName: {{ template "kolotoc.fullname" . }}
+          defaultMode: 448
+          items:
+          - key: host-key
+            path: id_rsa
+          - key: host-key-pub
+            path: authorized_keys
+{{- if .Values.volumes }}
+{{ toYaml .Values.volumes | indent  6 }}
+{{- end }}
+      containers:
+      - name: kolotoc-scheduler
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+        env:
+        - name: PROJECT_NAME
+          value: "{{ .Values.projectName }}"
+        - name: CUDA_STUB_LOCATION
+          value: "{{ .Values.cuda.stubs }}"
+        - name: DASK_SCHEDULER_PORT
+          value: "{{ .Values.scheduler.schedulerPort }}"
+        - name: DASK_DASHBOARD_PORT
+          value: "{{ .Values.scheduler.dashboardPort }}"
+        - name: JUPYTER_LAB_PORT
+          value: "{{ .Values.scheduler.jupyterPort }}"
+        - name: TENSORBOARD_PORT
+          value: "{{ .Values.scheduler.tensorboardPort }}"
+        - name: OPENMPI_SSH_PORT
+          value: "{{ .Values.ssh.port }}"
+       {{- if .Values.env }}
+       {{- range $key, $value := .Values.env }}
+        - name: "{{ $key }}"
+          value: "{{ $value }}"
+       {{- end }}
+       {{- end }}
+        securityContext:
+          privileged: true
+        ports:
+        - containerPort: {{ .Values.ssh.port }}
+        volumeMounts:
+        - name: {{ template "kolotoc.fullname" . }}-config
+          mountPath: /kolotoc/generated
+        - name: {{ template "kolotoc.fullname" . }}-secret
+          readOnly: true
+          mountPath: "/etc/secret-volume"
+{{- if .Values.volumeMounts }}
+{{ toYaml .Values.volumeMounts | indent 8 }}
+{{- end }}
+        command: ["/bin/bash", "-c"]
+        args: [". /kolotoc/generated/ssh.sh && 
+                . /kolotoc/generated/run.sh"]
+      tolerations:
+        - key: "node"
+          operator: "Equal"
+          value: "scheduler"
+          effect: "NoSchedule"

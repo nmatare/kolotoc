@@ -1,12 +1,13 @@
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "kolotoc.fullname" . }}-scheduler
+  name: {{ template "kolotoc.fullname" . }}-tower
   labels:
     app: {{ template "kolotoc.name" . }}
     chart: {{ template "kolotoc.chart" . }}
     release: {{ .Release.Name }}
-    heritage: {{ .Release.Deployment }}
+    heritage: {{ .Release.Service }}
 spec:
   clusterIP: None
   ports:
@@ -16,4 +17,4 @@ spec:
   selector:
     app: {{ template "kolotoc.name" . }}
     release: {{ .Release.Name }}
-    role: scheduler
+    role: tower

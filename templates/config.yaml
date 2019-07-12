@@ -1,10 +1,12 @@
 ---
-{{- $workerNum := .Values.worker.number -}}
+{{- $towerNumber := .Values.tower.number -}}
+{{- $carrierNumber := .Values.carrier.number -}}
 {{- $name := include "kolotoc.fullname" . }}
 {{- $slots := 1 }}
-{{- if index .Values.worker.resources "nvidia.com/gpu" }}
-{{- $slots := index .Values.worker.resources "nvidia.com/gpu" }}
-{{- end }}
+#{{- if index .Values.tower "nvidia.com/gpu" }}
+#{{- $slots := index .Values.tower.gpus "nvidia.com/gpu" }}
+#{{- end }}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,22 +16,72 @@ metadata:
     release: {{ .Release.Name | quote }}
     chart: {{ template "kolotoc.chart" . }}
     app: {{ template "kolotoc.fullname" . }}
-data:
-  hostfile.config: |
-    {{ $name }}-scheduler slots=0
-    {{- range $i, $none := until (int $workerNum) }}
-    {{ $name }}-{{ $i }}.{{ $name }} slots={{ $slots }}
-    {{- end }}
-  
-  ssh.readiness: |
-    #!/bin/bash
-    set -xev
-    ssh localhost ls
 
-  scheduler.run: |
+data:
+  scheduler.config: |
+    {{ $name }}-scheduler
+
+  tower.config: |
+    {{- range $i, $none := until (int $towerNumber) }}
+    {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $slots }}
+    {{- end }}
+
+  carrier.config: |
+    {{- range $i, $none := until (int $carrierNumber) }}
+    {{ $name }}-carrier-{{ $i }}.{{ $name }}-carrier slots={{ $slots }}
+    {{- end }}  
+  
+  cuda.config: |
     #!/bin/bash
-    set -x
-    sleep 5
+    set -a
+
+    export NCCL_SOCKET_IFNAME=^lo,docker0
+    export LD_LIBRARY_PATH=/usr/local/cuda/extras/CUPTI/lib64/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+    if [[ ! -z "$(command -v nvidia-smi)" ]]; then
+      export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
+      export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/nvidia/bin:/usr/local/cuda/bin/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+      
+    else 
+      export LD_LIBRARY_PATH=$CUDA_STUB_LOCATION/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+      ldconfig $CUDA_STUB_LOCATION
+    fi
+
+    echo "NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}" >> /etc/environment
+    echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> /etc/environment
+    sed -i "/\<PATH\>/cPATH=$PATH" /etc/environment
+
+  ssh.wait: |
+    #!/bin/bash
+
+    function retry() {
+        local n=0;local try=$1
+        local cmd="${@: 2}"
+        [[ $# -le 1 ]] && {
+            echo "Usage $0 <retry_number> <Command>";
+        }
+        set +e
+        until [[ $n -ge $try ]]
+        do
+          $cmd && break || {
+                  echo "Command Fail.."
+                  ((n++))
+                  echo "retry $n :: [$cmd]"
+                  sleep 1;
+                  }
+        done
+        $cmd
+        if [ $? -ne 0 ]; then
+          exit 1
+        fi
+        set -e   
+    }
+
+    retry 30 ssh -o ConnectTimeout=30 -q $DASK_SCHEDULER_ADDRESS exit
+
+  ssh.config: |
+    #!/bin/bash
+    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
 
     mkdir -p /root/.ssh
     rm -f /root/.ssh/config
@@ -40,58 +92,106 @@ data:
     yes | cp /etc/secret-volume/authorized_keys /root/.ssh/authorized_keys
     set -e
 
-    echo "Port $HOST_SSH_PORT" > /root/.ssh/config
-    sed -i "s/^Port.*/Port $HOST_SSH_PORT /g" /etc/ssh/sshd_config
+    echo "Port $OPENMPI_SSH_PORT" > /root/.ssh/config
+    sed -i "s/^Port.*/Port $OPENMPI_SSH_PORT /g" /etc/ssh/sshd_config
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     /usr/sbin/sshd
 
+  scheduler.run: |
+    #!/bin/bash
+    set -xve
+
     function repo(){
-        if [[ "$1" == "update" ]]; then
-            echo "Updating the repository across the cluster... "
-            export REPO_COMMAND="chmod 600 $BUILD_KEY_LOCATION && \
-                git fetch --all && \
-                git reset --hard origin/$2 && \
-                chmod 600 $BUILD_KEY_LOCATION && \
-                git pull origin $2"
-        fi
 
-        if [[ "$1" == "checkout" ]]; then
-            echo "Switching cluster to branch $2... "
-            export REPO_COMMAND="git checkout $2"
-        fi
+      if [[ -z "$2" ]]; then
+          echo "Failed. Please pass the desired branch name. Got $2. "
+      fi
 
-        if [[ -z "$2" ]]; then
-            echo "Failed. Please pass the desired branch name. "
-        fi
+      case "$1" in
+        "update")
+          REPO_COMMAND="chmod 600 $BUILD_KEY_LOCATION && \
+            git fetch --all && \
+            git reset --hard origin/$2 && \
+            chmod 600 $BUILD_KEY_LOCATION && \
+            git pull origin $2"
+        ;;
+        "checkout")
+          REPO_COMMAND="git checkout $2"
+        ;;
+        *)
+          echo "Please specify either 'update' or 'checkout'. Got $1. "
+          exit 1
+        ;;
+      esac
 
-        eval $REPO_COMMAND
-        mpiexec --allow-run-as-root \
-            --mca orte_keep_fqdn_hostnames t \
-            --timeout 30 \
-            --hostfile /kolotoc/generated/hostfile \
-            /bin/bash -c "$REPO_COMMAND"
+      cat /kolotoc/generated/carrier.hostfile \
+        /kolotoc/generated/tower.hostfile > /root/$PROJECT_NAME/.hostfile
+
+      mpiexec --allow-run-as-root \
+          --mca orte_keep_fqdn_hostnames t \
+          --mca plm rsh --mca oob tcp --mca routed debruijn \
+          -mca btl_tcp_if_exclude lo,docker0 \
+          --timeout 30 \
+          --hostfile /root/$PROJECT_NAME/.hostfile \
+          -x PYTHONPATH \
+          -x NCCL_SOCKET_IFNAME=^lo,docker0 \
+          /bin/bash -c "$REPO_COMMAND"
     }
 
     function goto(){
-      workers="$(($(wc -l /kolotoc/generated/hostfile | cut -d ' ' -f1) - 1))"
-      if [[ -z "$1" ]]; then
-        echo "Please specify a machine-node-rank. "
+
+      function _goto_machine_node(){
+        nodes="$(wc -l $1 | cut -d ' ' -f1)"
+        
+        if [[ "$2" -ge "$nodes" ]]; then
+          echo "Machine-node-$2 does not exist. "
+          exit
+        fi
+        echo "Going to machine-node-$2. "
+        ssh "$(head -"$(($2 + 1))" $1 | tail -1 | cut -d ' ' -f1)"
+
+      }
+
+      if [[ -z "$2" ]]; then
+        echo "Please specify a machine-node. Got $2. "
         exit
       fi
-      
-      if [[ "$1" -ge "$workers" ]]; then
-        echo "Machine-node-rank-$1 does not exist. "
-        exit
-      fi
-      echo "Going to machine-node-rank-$1. "
-      ssh "$(tail -n +$(($1 + 2)) /kolotoc/generated/hostfile | cut -d ' ' -f1)"
+
+      case "$1" in
+        "tower")
+          _goto_machine_node /kolotoc/generated/tower.hostfile $2
+        ;;
+        "carrier")
+          _goto_machine_node /kolotoc/generated/carrier.hostfile $2
+        ;;
+        *)
+          echo "Please specify either 'tower' or 'carrier'. Got $1. "
+          exit 1
+        ;;
+      esac
     }
 
-    declare -f repo goto >> /root/.bashrc
-    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
+    function reboot_dask(){
+      echo "Rebooting the Dask cluster... "
+      python -c "from dask.distributed import Client; \
+        Client('*:$DASK_SCHEDULER_PORT').restart()"
 
+      pkill dask-scheduler > /dev/null 2>&1
+      sleep 1
+      dask-scheduler --host "*" \
+        --port=$DASK_SCHEDULER_PORT \
+        --dashboard-address="*:$DASK_DASHBOARD_PORT" > /dev/null 2>&1 &
+      echo "Success! The Dask cluster was rebooted. "
+    }
+
+    function monitor_gpus(){
+      pip install git+https://github.com/wookayin/gpustat-web.git
+      python -m gpustat_web --port 48109 /kolotoc/generated/tower.hostfile
+    }
+
+    declare -f repo goto reboot_dask >> /root/.bashrc
     ldconfig $CUDA_STUB_LOCATION
-    repo update master
+
     source activate $PROJECT_NAME
 
     $CONDA_PREFIX/bin/python -m ipykernel install --user \
@@ -109,135 +209,29 @@ data:
       --port=$DASK_SCHEDULER_PORT \
       --dashboard-address="*:$DASK_DASHBOARD_PORT" &
 
-    if [ $# -eq 0 ]; then
-        sleep infinity
-      else
-        bash -c "$*"
-    fi
-
-  scheduler.waitWorkerReady: |
-    #!/bin/bash
-    set -xev
-
-    function updateSSHPort() {
-      mkdir -p /root/.ssh
-      rm -f /root/.ssh/config
-      touch /root/.ssh/config
-
-      if [ -n "$HOST_SSH_PORT" ]; then
-        echo "Port $HOST_SSH_PORT" > /root/.ssh/config
-        echo "StrictHostKeyChecking no" >> /root/.ssh/config
-      fi
-    }
-
-    function runCheckSSH() {
-      set +e
-      yes | cp /etc/secret-volume/id_rsa /root/.ssh/id_rsa
-      yes | cp /etc/secret-volume/authorized_keys /root/.ssh/authorized_keys
-      set -e
-      
-      for i in `cat $1 | awk '{print $(1)}'`;do
-        if [[ "$i" != *"scheduler" ]];then
-          retry 30 ssh -o ConnectTimeout=10 -q $i exit
-        fi
-      done
-    }
-
-    function retry() {
-        local n=0;local try=$1
-        local cmd="${@: 2}"
-        [[ $# -le 1 ]] && {
-            echo "Usage $0 <retry_number> <Command>";
-        }
-        set +e
-        until [[ $n -ge $try ]]
-        do
-          $cmd && break || {
-                  echo "Command Fail.."
-                  ((n++))
-                  echo "retry $n :: [$cmd]"
-                  sleep 1;
-                  }
-        done
-        $cmd
-        if [ $? -ne 0 ]; then
-          exit 1
-        fi
-        set -e   
-    }
-   
-    updateSSHPort
-    runCheckSSH $1
-
-  worker.run: |
-    #!/bin/bash
-    function retry() {
-        local n=0;local try=$1
-        local cmd="${@: 2}"
-        [[ $# -le 1 ]] && {
-            echo "Usage $0 <retry_number> <Command>";
-        }
-        set +e
-        until [[ $n -ge $try ]]
-        do
-          $cmd && break || {
-                  echo "Command Fail.."
-                  ((n++))
-                  echo "retry $n :: [$cmd]"
-                  sleep 1;
-                  }
-        done
-        $cmd
-        if [ $? -ne 0 ]; then
-          exit 1
-        fi
-        set -e   
-    }
-
-    set -x
-
-    mkdir -p /root/.ssh
-    rm -f /root/.ssh/config
-    touch /root/.ssh/config
-
-    set +e
-    yes | cp /etc/secret-volume/id_rsa /root/.ssh/id_rsa
-    yes | cp /etc/secret-volume/authorized_keys /root/.ssh/authorized_keys
-    set -e
-
-    echo "Port $HOST_SSH_PORT" > /root/.ssh/config
-    sed -i "s/^Port.*/Port $HOST_SSH_PORT /g" /etc/ssh/sshd_config
-    echo "StrictHostKeyChecking no" >> /root/.ssh/config
-    /usr/sbin/sshd
-
-    echo "GIT_SSH_COMMAND=${GIT_SSH_COMMAND}" >> /etc/environment
-    export DASK_SCHEDULER_ADDRESS="$(head -n 1 /kolotoc/generated/hostfile | cut -d ' ' -f1)"
-    retry 30 ssh -o ConnectTimeout=2 -q $DASK_SCHEDULER_ADDRESS exit
-
-    if [[ "$DASK_WORKER_GPU" -gt 0 ]]; then
-      export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
-      export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/nvidia/bin:/usr/local/cuda/bin/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-      
-      echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> /etc/environment
-      sed -i "/\<PATH\>/cPATH=$PATH" /etc/environment
-    else 
-      ldconfig $CUDA_STUB_LOCATION
-    fi
-
-    source activate $PROJECT_NAME
-
-    for worker in $(seq 0 "$((DASK_WORKER_PROCESS - 1))"); do 
-      echo "Launching dask-worker process $((worker + 1)) of $DASK_WORKER_PROCESS"
-      dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
-        --name=worker-rank-$(hostname -A | cut -d'-' -f5 | grep -o '[0-9]')-$worker-$(hostname -i) \
-        --resources="CPU=$DASK_THREADS_PER_PROCESS GPU=$DASK_WORKER_GPU MEM=$DASK_WORKER_MEM" \
-        --memory-limit="$DASK_WORKER_MEM" \
-        --local-directory=/tmp \
-        --nanny \
-        --nthreads="$DASK_THREADS_PER_PROCESS" &
-
-    done;
-
+    repo update master & 
     sleep infinity
 
-# EOF
+  tower.run: |
+    #!/bin/bash
+    sleep infinity
+
+  carrier.run: |
+    #!/bin/bash
+    set -x
+    source activate $PROJECT_NAME
+
+    export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
+
+    dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
+      --name=carrier-worker-$(hostname -i) \
+      --nprocs=$NUM_DASK_WORKERS \
+      --nthreads=1 \
+      --memory-limit="$DASK_WORKER_MEM GB" \
+      --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
+      --local-directory=/tmp \
+      --reconnect \
+      --nanny \
+      --no-bokeh &
+
+    sleep infinity

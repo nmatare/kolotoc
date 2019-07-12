@@ -44,11 +44,15 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   graphviz \
   fonts-liberation \
   nano \
+  net-tools \
   openssh-client \
   openssh-server \
   sudo && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
+
+# @TODO(install nv_peer_memory)
+#https://github.com/horovod/horovod/blob/master/docs/gpus.rst
 
 ENV PATH="/usr/local/cuda/bin${PATH:+:${PATH}}"
 RUN echo NCCL_DEBUG=DEBUG >> /etc/nccl.conf && \
@@ -129,7 +133,7 @@ RUN echo "hwloc_base_binding_policy = none" >> /usr/local/etc/openmpi-mca-params
 # Install Python packages into the conda base env using CUDA stubs
 # https://www.anaconda.com/blog/developer-blog/using-pip-in-a-conda-environment/
 ENV PATH=/opt/conda/bin:$PATH
-RUN pip install tensorflow-gpu && \
+RUN pip install tensorflow-gpu git+https://github.com/wookayin/gpustat-web.git && \
   ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
   HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_WITH_TENSORFLOW=1 pip install horovod --no-cache-dir && \
   ldconfig
