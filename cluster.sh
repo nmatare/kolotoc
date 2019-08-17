@@ -10,24 +10,25 @@ function usage {
   script_name=$0
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] "
-  echo "               [--num-carriers num_carrier_nodes]"
-  echo "               [--carrier-type carrier_type]"
 
-  echo "               [--num-towers num_tower_nodes]"
+  echo "               [--num-towers num_towers]"
   echo "               [--tower-type tower_machine_type]"
+
   echo "               [--gpus-per-tower gpus_per_tower]"
   echo "               [--gpu-type gpu_type]"
+
+  echo "               [--num-carriers num_carriers]"
+  echo "               [--carrier-type carrier_type]"
 
   echo "               [--help]"
 
   echo "  Parameters: "
-  echo "  cluster_name:       name of the Kubernetes cluster. "
-  echo "                      (default: kolotoc-cluster-uuid)"
-  echo "  num_carrier_nodes:  number of carriers (nodes with dask-workers) to launch."
-  echo "  carrier_type:       the machine type used by carriers (given by Google Cloud Compute). "
-
-  echo "  num_tower_nodes:    the number of ring-all-reduce machine nodes to launch. "
-  echo "  num-dask-workers:   optional control over the number of dask-workers per carrier node"
+  echo "  cluster_name:       the name of the Kubernetes cluster. (default: kolotoc-cluster-uuid)"
+  echo "  num_towers:         the number of nodes linked together through a ring-all-reduce network to launch. (default: 1)"
+  echo "  tower_type:         the machine type used by tower nodes. (default: n1-highmem-2)"
+  echo "  num_carriers:       the number of nodes (machines with additional dask-workers seperate from the ring-all-reduce network) to launch. (default: 0)"
+  echo "  carrier_type:       the machine type used by carrier nodes (default: n1-highcpu-2). "
+  echo "  num-dask-workers:   optional control over the number of dask-workers per carrier node (default: number of logical cores) "
   echo "  gpus_per_tower:     the number gpus to attach to each tower. (default: 0)"
   echo "  gpu_type:           the type of gpu to attach to each tower. (default: nvidia-tesla-k80)"
   echo "  help:               print setup. "
@@ -51,7 +52,7 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 CARRIER_NAME="carrier"
 CARRIER_MACHINE_TYPE="n1-highcpu-2"
 CARRIER_DISK_SIZE=50
-NUM_CARRIER_NODES=1
+NUM_CARRIER_NODES=0
 
 # Tower config
 TOWER_NAME="tower"
