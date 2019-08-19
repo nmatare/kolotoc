@@ -82,6 +82,8 @@ spec:
           value: "{{ .Values.ssh.port }}"
         - name: CUDA_STUB_LOCATION
           value: "{{ .Values.cuda.stubs }}"
+        - name: NUM_DASK_WORKERS
+          value: "{{ .Values.tower.workers }}"
         - name: DASK_SCHEDULER_ADDRESS
           value: {{ template "kolotoc.fullname" . }}-scheduler
      {{- if .Values.env }}

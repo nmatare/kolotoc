@@ -285,6 +285,8 @@ carrier:
 
 tower:
   number: $NUM_TOWER_NODES
+  workers: $(if [[ ! -z "$NUM_DASK_WORKERS" ]]; then 
+    echo "$NUM_DASK_WORKERS"; else echo "$TOWER_MACHINE_CPU" ; fi)
   gpus: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
     echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
 

@@ -214,13 +214,25 @@ data:
 
   tower.run: |
     #!/bin/bash
+    set -x
+    source activate $PROJECT_NAME
+    export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
+
+    dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
+      --name=tower-worker-$(hostname -i) \
+      --nprocs=$NUM_DASK_WORKERS \
+      --nthreads=1 \
+      --memory-limit="$DASK_WORKER_MEM GB" \
+      --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
+      --local-directory=/tmp \
+      --reconnect 
+
     sleep infinity
 
   carrier.run: |
     #!/bin/bash
     set -x
     source activate $PROJECT_NAME
-
     export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
 
     dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
@@ -230,8 +242,6 @@ data:
       --memory-limit="$DASK_WORKER_MEM GB" \
       --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
       --local-directory=/tmp \
-      --reconnect \
-      --nanny \
-      --no-bokeh &
+      --reconnect 
 
     sleep infinity

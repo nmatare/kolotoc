@@ -36,4 +36,5 @@ carrier:
 
 tower:
   number: 1
+  workers: 1
   gpus: 0
