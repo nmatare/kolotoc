@@ -182,7 +182,7 @@ CARRIER_MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$CARRIER_MACHINE_TYPE]}" | a
 
 if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
   if [[ "$TOWER_GPU_TYPE" == "" ]]; then
-    printf "$You must specify a GPU type when setting '--num-gpus'. \
+    printf "${RED}You must specify a GPU type when setting '--num-gpus'. \
     Received $TOWER_GPU_TYPE ${OFF}\n"
     exit 1
   fi
@@ -209,7 +209,9 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
       ZONE="us-east1-b"
       ;;
   esac
-  printf "$Migrating cluster to zone '$ZONE' to accomadate GPU availability... ${OFF}\n"
+
+  printf "${GREEN}Migrating cluster to zone '$ZONE' to accomadate GPU \
+  availability... ${OFF}\n"
 
   ACCELERATOR="--accelerator type=$TOWER_GPU_TYPE,count=$TOWER_MACHINE_GPUS --zone=$ZONE"
 fi
@@ -264,15 +266,17 @@ else
   fi
 
   # We add 'carrier' machine nodes that serve as nodes filled with dask-workers
-  printf "${GREEN}Creating Carrier nodes (dask-worker network)... ${OFF}\n"
-  gcloud container node-pools \
-  create "$CLUSTER_NAME-$CARRIER_NAME" --no-user-output-enabled \
-    --preemptible \
-    --cluster="$CLUSTER_NAME" \
-    --disk-size="$CARRIER_DISK_SIZE" \
-    --num-nodes="$NUM_CARRIER_NODES" \
-    --machine-type="$CARRIER_MACHINE_TYPE" \
-    --zone="$ZONE"
+  if [[ "$NUM_CARRIER_NODES" -gt "0" ]]; then
+    printf "${GREEN}Creating Carrier nodes (dask-worker network)... ${OFF}\n"
+    gcloud container node-pools \
+    create "$CLUSTER_NAME-$CARRIER_NAME" --no-user-output-enabled \
+      --preemptible \
+      --cluster="$CLUSTER_NAME" \
+      --disk-size="$CARRIER_DISK_SIZE" \
+      --num-nodes="$NUM_CARRIER_NODES" \
+      --machine-type="$CARRIER_MACHINE_TYPE" \
+      --zone="$ZONE"
+  fi
 
   # Delete the default node pool
   gcloud container node-pools \
