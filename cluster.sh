@@ -30,7 +30,7 @@ function usage {
   echo "  tower_type:         the machine type used by tower nodes. (default: n1-highmem-2)"
   echo "  num_carriers:       the number of nodes (machines with additional dask-workers seperate from the ring-all-reduce network) to launch. (default: 0)"
   echo "  carrier_type:       the machine type used by carrier nodes (default: n1-highcpu-2). "
-  echo "  num_dask_workers:   optional control over the number of dask-workers per carrier node (default: number of logical cores) "
+  echo "  num_dask_workers:   optional control over the number of dask-workers per node. Applies to both towers and carriers (default: number of logical cores) "
   echo "  gpus_per_tower:     the number gpus to attach to each tower. (default: 0)"
   echo "  gpu_type:           the type of gpu to attach to each tower. (default: nvidia-tesla-k80)"
   echo "  help:               print setup. "
@@ -210,8 +210,7 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
       ;;
   esac
 
-  printf "${GREEN}Migrating cluster to zone '$ZONE' to accomadate GPU \
-  availability... ${OFF}\n"
+  printf "${GREEN}Migrating cluster to zone '$ZONE' to accomadate GPU availability... ${OFF}\n"
 
   ACCELERATOR="--accelerator type=$TOWER_GPU_TYPE,count=$TOWER_MACHINE_GPUS --zone=$ZONE"
 fi
@@ -316,7 +315,9 @@ carrier:
 
 tower:
   number: $NUM_TOWER_NODES
-  workers: $TOWER_MACHINE_CPU
+  workers: $(if [[ ! -z "$NUM_DASK_WORKERS" ]]; then 
+    echo "$NUM_DASK_WORKERS"; else echo "$TOWER_MACHINE_CPU" ; fi)
+
   gpus: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
     echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
 
