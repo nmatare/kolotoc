@@ -146,6 +146,7 @@ RED='\u001b[31;1m'
 OFF='\033[0m'
 
 declare -A AVAL_MACHINE_TYPES=(
+  ["custom-8-15000"]="8 15"
   ["n1-standard-1"]="1 3.75" # minimum requirements
   ["n1-standard-2"]="2 7.5"
   ["n1-standard-4"]="4 15"
@@ -210,7 +211,7 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
       ;;
   esac
 
-  printf "${GREEN}Migrating cluster to zone '$ZONE' to accomadate GPU availability... ${OFF}\n"
+  printf "${GREEN}Migrating cluster to zone '$ZONE' to accomadate GPU locations... ${OFF}\n"
 
   ACCELERATOR="--accelerator type=$TOWER_GPU_TYPE,count=$TOWER_MACHINE_GPUS --zone=$ZONE"
 fi
