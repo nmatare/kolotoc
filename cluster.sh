@@ -146,7 +146,7 @@ RED='\u001b[31;1m'
 OFF='\033[0m'
 
 declare -A AVAL_MACHINE_TYPES=(
-  ["custom-8-15000"]="8 15"
+  ["custom-8-15360"]="8 15"
   ["n1-standard-1"]="1 3.75" # minimum requirements
   ["n1-standard-2"]="2 7.5"
   ["n1-standard-4"]="4 15"
