@@ -47,9 +47,6 @@ spec:
           - key: tower.config
             path: tower.hostfile
             mode: 438
-          - key: carrier.config
-            path: carrier.hostfile
-            mode: 438
           - key: cuda.config
             path: cuda.sh
             mode: 365

@@ -17,9 +17,6 @@ function usage {
   echo "               [--gpus-per-tower gpus_per_tower]"
   echo "               [--gpu-type gpu_type]"
 
-  echo "               [--num-carriers num_carriers]"
-  echo "               [--carrier-type carrier_type]"
-
   echo "               [--num-dask-workers num_dask_workers]"
 
   echo "               [--help]"
@@ -28,9 +25,7 @@ function usage {
   echo "  cluster_name:       the name of the Kubernetes cluster. (default: kolotoc-cluster-uuid)"
   echo "  num_towers:         the number of nodes linked together through a ring-all-reduce network to launch. (default: 1)"
   echo "  tower_type:         the machine type used by tower nodes. (default: n1-highmem-2)"
-  echo "  num_carriers:       the number of nodes (machines with additional dask-workers seperate from the ring-all-reduce network) to launch. (default: 0)"
-  echo "  carrier_type:       the machine type used by carrier nodes (default: n1-highcpu-2). "
-  echo "  num_dask_workers:   optional control over the number of dask-workers per node. Applies to both towers and carriers (default: number of logical cores) "
+  echo "  num_dask_workers:   optional control over the number of dask-workers per node. (default: number of logical cores) "
   echo "  gpus_per_tower:     the number gpus to attach to each tower. (default: 0)"
   echo "  gpu_type:           the type of gpu to attach to each tower. (default: nvidia-tesla-k80)"
   echo "  help:               print setup. "
@@ -49,12 +44,6 @@ SCHEDULER_DISK_SIZE=50
 SCHEDULER_DISK_TYPE="pd-standard"
 JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-kolotoc}"
 BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
-
-# Carrier config
-CARRIER_NAME="carrier"
-CARRIER_MACHINE_TYPE="n1-highcpu-2"
-CARRIER_DISK_SIZE=50
-NUM_CARRIER_NODES=0
 
 # Tower config
 TOWER_NAME="tower"
@@ -90,14 +79,6 @@ setargs(){
       "--cluster-name")
         shift
         CLUSTER_NAME=$1
-        ;;
-      "--num-carriers")
-        shift
-        NUM_CARRIER_NODES=$1
-        ;;
-      "--carrier-type")
-        shift
-        CARRIER_MACHINE_TYPE=$1
         ;;
       "--num-towers")
         shift
@@ -148,6 +129,7 @@ OFF='\033[0m'
 declare -A AVAL_MACHINE_TYPES=(
   ["custom-8-15360"]="8 15"
   ["custom-8-20360"]="8 20"
+  ["custom-8-25360"]="8 25"
   ["n1-standard-1"]="1 3.75" # minimum requirements
   ["n1-standard-2"]="2 7.5"
   ["n1-standard-4"]="4 15"
@@ -178,9 +160,6 @@ declare -A AVAL_MACHINE_TYPES=(
 
 TOWER_MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$TOWER_MACHINE_TYPE]}" | awk '{print $1}')
 TOWER_MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$TOWER_MACHINE_TYPE]}" | awk '{print $2}')
-
-CARRIER_MACHINE_CPU=$(echo "${AVAL_MACHINE_TYPES[$CARRIER_MACHINE_TYPE]}" | awk '{print $1}')
-CARRIER_MACHINE_MEMORY=$(echo "${AVAL_MACHINE_TYPES[$CARRIER_MACHINE_TYPE]}" | awk '{print $2}')
 
 if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
   if [[ "$TOWER_GPU_TYPE" == "" ]]; then
@@ -224,11 +203,6 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
 else
 
-  if [[ -z "$CARRIER_MACHINE_CPU" || -z "$CARRIER_MACHINE_MEMORY" ]]; then
-    printf "${RED}Could not find machine type $CARRIER_MACHINE_TYPE on GC!${OFF}\n"
-    exit 1
-  fi
-
   gcloud config set project "$GOOGLE_PROJECT_NAME"
   printf "${GREEN}Creating cluster $CLUSTER_NAME on Google Cloud... ${OFF}\n"
   # Known issue where you can't modify the name of the default node-pool; so
@@ -266,19 +240,6 @@ else
       --disk-size="$TOWER_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
   fi
 
-  # We add 'carrier' machine nodes that serve as nodes filled with dask-workers
-  if [[ "$NUM_CARRIER_NODES" -gt "0" ]]; then
-    printf "${GREEN}Creating Carrier nodes (dask-worker network)... ${OFF}\n"
-    gcloud container node-pools \
-    create "$CLUSTER_NAME-$CARRIER_NAME" --no-user-output-enabled \
-      --preemptible \
-      --cluster="$CLUSTER_NAME" \
-      --disk-size="$CARRIER_DISK_SIZE" \
-      --num-nodes="$NUM_CARRIER_NODES" \
-      --machine-type="$CARRIER_MACHINE_TYPE" \
-      --zone="$ZONE"
-  fi
-
   # Delete the default node pool
   gcloud container node-pools \
   delete "default-pool" --quiet --cluster "$CLUSTER_NAME" --zone="$ZONE"
@@ -309,11 +270,6 @@ ssh:
 $(cat $TEMP_DIR/id_rsa | sed 's/^/    /g')
   hostKeyPub: |-
 $(cat $TEMP_DIR/id_rsa.pub | sed 's/^/    /g')
-
-carrier:
-  number: $NUM_CARRIER_NODES
-  workers: $(if [[ ! -z "$NUM_DASK_WORKERS" ]]; then 
-    echo "$NUM_DASK_WORKERS"; else echo "$CARRIER_MACHINE_CPU" ; fi)
 
 tower:
   number: $NUM_TOWER_NODES
@@ -353,10 +309,6 @@ kubectl taint nodes \
 kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$TOWER_NAME" \
   "node"="tower":"NoSchedule" --overwrite
-
-kubectl taint nodes \
-  -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$CARRIER_NAME" \
-  "node"="carrier":"NoSchedule" --overwrite
 
 helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
 
@@ -414,8 +366,6 @@ printf "${GREEN}Update the repository across all towers: \
 'repo update master' ${OFF}\n"
 printf "${GREEN}Go to tower zero (rank-zero): \
 'goto tower 0' ${OFF}\n"
-printf "${GREEN}Go to carrier zero: \
-'goto carrier 0' ${OFF}\n"
 echo ""
 
 kubectl exec $SCHEDULER_POD -it /bin/bash

@@ -1,6 +1,5 @@
 ---
 {{- $towerNumber := .Values.tower.number -}}
-{{- $carrierNumber := .Values.carrier.number -}}
 {{- $name := include "kolotoc.fullname" . }}
 {{- $slots := 1 }}
 #{{- if index .Values.tower "nvidia.com/gpu" }}
@@ -25,12 +24,7 @@ data:
     {{- range $i, $none := until (int $towerNumber) }}
     {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $slots }}
     {{- end }}
-
-  carrier.config: |
-    {{- range $i, $none := until (int $carrierNumber) }}
-    {{ $name }}-carrier-{{ $i }}.{{ $name }}-carrier slots={{ $slots }}
-    {{- end }}  
-  
+ 
   cuda.config: |
     #!/bin/bash
     set -a
@@ -124,8 +118,7 @@ data:
         ;;
       esac
 
-      cat /kolotoc/generated/carrier.hostfile \
-        /kolotoc/generated/tower.hostfile > /root/$PROJECT_NAME/.hostfile
+      cat /kolotoc/generated/tower.hostfile > /root/$PROJECT_NAME/.hostfile
 
       mpiexec --allow-run-as-root \
           --mca orte_keep_fqdn_hostnames t \
@@ -161,11 +154,8 @@ data:
         "tower")
           _goto_machine_node /kolotoc/generated/tower.hostfile $2
         ;;
-        "carrier")
-          _goto_machine_node /kolotoc/generated/carrier.hostfile $2
-        ;;
         *)
-          echo "Please specify either 'tower' or 'carrier'. Got $1. "
+          echo "Please specify a 'tower'. Got $1. "
           exit 1
         ;;
       esac
@@ -216,32 +206,18 @@ data:
     #!/bin/bash
     set -x
     source activate $PROJECT_NAME
-    export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
 
-    dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
-      --name=tower-worker-$(hostname -i) \
-      --nprocs=$NUM_DASK_WORKERS \
-      --nthreads=1 \
-      --memory-limit="$DASK_WORKER_MEM GB" \
-      --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
-      --local-directory=/tmp \
-      --reconnect 
+    if [[ "$NUM_DASK_WORKERS" -gt "0" ]]; then
+      export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
+      dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
+        --name=tower-worker-$(hostname -i) \
+        --nprocs=$NUM_DASK_WORKERS \
+        --nthreads=1 \
+        --memory-limit="$DASK_WORKER_MEM GB" \
+        --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
+        --local-directory=/tmp \
+        --reconnect
 
-    sleep infinity
-
-  carrier.run: |
-    #!/bin/bash
-    set -x
-    source activate $PROJECT_NAME
-    export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
-
-    dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
-      --name=carrier-worker-$(hostname -i) \
-      --nprocs=$NUM_DASK_WORKERS \
-      --nthreads=1 \
-      --memory-limit="$DASK_WORKER_MEM GB" \
-      --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
-      --local-directory=/tmp \
-      --reconnect 
+    fi
 
     sleep infinity

@@ -2,17 +2,15 @@
 
 This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernetes managed cluster which deploys a distributed ring-all-reduce neural network training framework [(Horovod)](https://eng.uber.com/horovod/) alongside a flexible task scheduling system [(Dask)](https://dask.org/)
 
-[Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each rank in the ring-all-reduce network is referred to as a "Tower". Towers are connected to the dask network via "Sentinel" dask-workers who simply monitor the state of the machine-node during training.
+[Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each rank in the ring-all-reduce network is referred to as a "Tower". [Dask-workers](https://distributed.dask.org/en/latest/worker.html) may be deployed on each tower either during cluster creation via the `--num-dask-workers` paramater, or dynamically when `mpirun` programs are called.
 
 Kolotoc creates a scheduler node outside of the ring-all-reduce-network as a Kubernetes deployment. The scheduler node serves as an entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
 
-Finally, Kolotoc creates "Carriers" or machine nodes that deploy [dask-workers](https://distributed.dask.org/en/latest/worker.html) as as statefulsets equally proportional to the number of logical cores.
 
 Some helpful commands:
 * `goto tower 0` -  Go to tower zero (rank-zero)
-* `goto carrier 0` -  Go to carrier zero (dask-workers on carrier zero)
-* `repo checkout master`  - Switch to master branch across all machine nodes (towers and carriers)
-* `repo update master` - Update the repository across all machine nodes (towers and carriers)
+* `repo checkout master`  - Switch to master branch across all machine nodes
+* `repo update master` - Update the repository across all machine nodes
 
 ## Prerequisites
 
@@ -35,10 +33,9 @@ Type `./cluster.sh --help` for a list of available options:
 |-----------------|-----------------------------|---------|
 | `cluster-name`  | cluster  name               | `kolotoc-cluster-uuid` |
 | `num-towers`    | number of ring-all-reduce ranks | `1` |
-| `num-gpus`      | number of GPUs to attach per rank | `0` |
-| `num-carriers`  | number of dask-worker machines | `1` |
-| `carrier-type`  | dask-worker machine type | `n1-standard-4` |
 | `tower-type`    | training machine type | `n1-standard-4` |
+| `num-gpus`       | number of GPUs to attach per rank | `0` |
+| `num-dask-workers`  | the number of dask-workers to attach per rank | `0` |
 
 ### Interacting with the Cluster
 

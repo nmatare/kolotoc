@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   libnccl2 \
   libnccl-dev \
   dbus \
+  htop \
   pciutils \
   apt-transport-https \
   ca-certificates \

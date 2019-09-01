@@ -33,9 +33,6 @@ spec:
           - key: tower.config
             path: tower.hostfile
             mode: 438
-          - key: carrier.config
-            path: carrier.hostfile
-            mode: 438
           - key: ssh.config
             path: ssh.sh
             mode: 365
