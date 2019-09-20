@@ -103,17 +103,20 @@ data:
 
       case "$1" in
         "update")
-          REPO_COMMAND="chmod 600 $BUILD_KEY_LOCATION && \
+          DISTRO_COMMAND="chmod 600 $BUILD_KEY_LOCATION && \
             git fetch --all && \
             git reset --hard origin/$2 && \
             chmod 600 $BUILD_KEY_LOCATION && \
             git pull origin $2"
         ;;
         "checkout")
-          REPO_COMMAND="git checkout $2"
+          DISTRO_COMMAND="git checkout $2"
+        ;;
+        "clear")
+          DISTRO_COMMAND="rm -rf /root/$PROJECT_NAME/checkpoints"
         ;;
         *)
-          echo "Please specify either 'update' or 'checkout'. Got $1. "
+          echo "Please specify either 'update', 'checkout' or 'clear'. Got $1. "
           exit 1
         ;;
       esac
@@ -128,7 +131,7 @@ data:
           --hostfile /root/$PROJECT_NAME/.hostfile \
           -x PYTHONPATH \
           -x NCCL_SOCKET_IFNAME=^lo,docker0 \
-          /bin/bash -c "$REPO_COMMAND"
+          /bin/bash -c "$DISTRO_COMMAND"
     }
 
     function goto(){

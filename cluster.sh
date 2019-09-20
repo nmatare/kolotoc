@@ -10,6 +10,7 @@ function usage {
   script_name=$0
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] "
+  echo "               [--scheduler-type scheduler_type]"
 
   echo "               [--num-towers num_towers]"
   echo "               [--tower-type tower_machine_type]"
@@ -23,6 +24,7 @@ function usage {
 
   echo "  Parameters: "
   echo "  cluster_name:       the name of the Kubernetes cluster. (default: kolotoc-cluster-uuid)"
+  echo "  scheduler_type:     the machine type used by scheduler node. (default: n1-highmem-2)"
   echo "  num_towers:         the number of nodes linked together through a ring-all-reduce network to launch. (default: 1)"
   echo "  tower_type:         the machine type used by tower nodes. (default: n1-highmem-2)"
   echo "  num_dask_workers:   optional control over the number of dask-workers per node. (default: number of logical cores) "
@@ -79,6 +81,10 @@ setargs(){
       "--cluster-name")
         shift
         CLUSTER_NAME=$1
+        ;;
+      "--scheduler-type")
+        shift
+        SCHEDULER_MACHINE_TYPE=$1
         ;;
       "--num-towers")
         shift
