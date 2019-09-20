@@ -131,6 +131,10 @@ RUN echo "hwloc_base_binding_policy = none" >> /usr/local/etc/openmpi-mca-params
   echo "btl_tcp_if_exclude = lo,docker0" >> /usr/local/etc/openmpi-mca-params.conf && \
   mkdir -p /var/run/sshd
 
+
+# @TODO(nathan) install nv_peer_memory sharing
+# https://github.com/Mellanox/nv_peer_memory
+
 # Install Python packages into the conda base env using CUDA stubs
 # https://www.anaconda.com/blog/developer-blog/using-pip-in-a-conda-environment/
 ENV PATH=/opt/conda/bin:$PATH

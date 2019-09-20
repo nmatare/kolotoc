@@ -39,7 +39,7 @@ DOCKER_TAG="${DOCKER_TAG:-latest}"
 
 # Scheduler config
 SCHEDULER_NAME="scheduler" # Scheduler (entrypoint) config
-SCHEDULER_MACHINE_TYPE="n1-standard-2"
+SCHEDULER_MACHINE_TYPE="n1-highmem-2"
 SCHEDULER_DISK_SIZE=50
 SCHEDULER_DISK_TYPE="pd-standard"
 JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-kolotoc}"
@@ -47,7 +47,7 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 
 # Tower config
 TOWER_NAME="tower"
-TOWER_MACHINE_TYPE="n1-highmem-2"
+TOWER_MACHINE_TYPE="n1-standard-2"
 TOWER_GPU_TYPE="nvidia-tesla-k80"
 ZONE="us-east4-a"
 # k80/t4 -  us-east1-d
@@ -128,8 +128,9 @@ OFF='\033[0m'
 
 declare -A AVAL_MACHINE_TYPES=(
   ["custom-8-15360"]="8 15"
-  ["custom-8-20360"]="8 20"
-  ["custom-8-25360"]="8 25"
+  ["custom-8-20480"]="8 20"
+  ["custom-8-25600"]="8 25"
+  ["custom-2-25600"]="2 25"
   ["n1-standard-1"]="1 3.75" # minimum requirements
   ["n1-standard-2"]="2 7.5"
   ["n1-standard-4"]="4 15"
@@ -171,7 +172,7 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
   case "$TOWER_GPU_TYPE" in
     "nvidia-tesla-k80")
       shift
-      ZONE="us-east1-d"
+      ZONE="us-east1-d"  # us-west1-b
       ;;
     "nvidia-tesla-t4")
       shift
@@ -237,6 +238,7 @@ else
       --cluster="$CLUSTER_NAME" \
       --num-nodes="$NUM_TOWER_NODES" \
       --machine-type="$TOWER_MACHINE_TYPE" \
+      --metadata=shutdown-script="#! /bin/bash > echo 'Preemptible node has been destroyed by Google. ' " \
       --disk-size="$TOWER_DISK_SIZE" ${ACCELERATOR:- --zone="$ZONE"}
   fi
 
