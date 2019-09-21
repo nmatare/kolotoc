@@ -113,7 +113,7 @@ data:
           DISTRO_COMMAND="git checkout $2"
         ;;
         "clear")
-          DISTRO_COMMAND="rm -rf /root/$PROJECT_NAME/checkpoints"
+          DISTRO_COMMAND="rm -rf /root/$PROJECT_NAME/$2"
         ;;
         *)
           echo "Please specify either 'update', 'checkout' or 'clear'. Got $1. "
