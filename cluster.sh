@@ -175,6 +175,12 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
     exit 1
   fi
 
+  if [[ "$TOWER_GPU_TYPE" == "nvidia-tesla-p4" || "$TOWER_GPU_TYPE" == "nvidia-tesla-p100" ]]; then
+    printf "${RED}'$TOWER_GPU_TYPE' GPUs are incompatible with cuDNN optimized cells. \
+    Change your GPU type to a supported card. ${OFF}\n"
+    exit 1
+  fi
+
   case "$TOWER_GPU_TYPE" in
     "nvidia-tesla-k80")
       shift
@@ -194,7 +200,7 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
       ;;
     "nvidia-tesla-v100")
       shift
-      ZONE="us-east1-b"
+      ZONE="us-central1-b"
       ;;
   esac
 

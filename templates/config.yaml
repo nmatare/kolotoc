@@ -1,10 +1,10 @@
 ---
 {{- $towerNumber := .Values.tower.number -}}
 {{- $name := include "kolotoc.fullname" . }}
-{{- $slots := 1 }}
-#{{- if index .Values.tower "nvidia.com/gpu" }}
-#{{- $slots := index .Values.tower.gpus "nvidia.com/gpu" }}
-#{{- end }}
+# {{- $slots := 1 }}
+# {{- if index .Values.tower "nvidia.com/gpu" }}
+# {{- $slots := index .Values.tower.gpus "nvidia.com/gpu" }}
+# {{- end }}
 
 apiVersion: v1
 kind: ConfigMap
@@ -22,7 +22,7 @@ data:
 
   tower.config: |
     {{- range $i, $none := until (int $towerNumber) }}
-    {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $slots }}
+    {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $(($NUM_GPUS_PER_TOWER>4?$NUM_GPUS_PER_TOWER:1)) }}
     {{- end }}
  
   cuda.config: |

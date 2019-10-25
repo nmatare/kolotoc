@@ -1,11 +1,10 @@
 ## Introduction
 
-This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernetes managed cluster which deploys a distributed ring-all-reduce neural network training framework [(Horovod)](https://eng.uber.com/horovod/) alongside a flexible task scheduling system [(Dask)](https://dask.org/)
+This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernetes managed cluster deploying a distributed ring-all-reduce training framework [(Horovod)](https://eng.uber.com/horovod/), alongside a flexible task scheduling system [(Dask)](https://dask.org/)
 
 [Kolotoc](https://cs.wikipedia.org/wiki/Koloto%C4%8D) creates a [ring all-reduce](https://www.cs.fsu.edu/~xyuan/paper/09jpdc.pdf) network as Kubernetes statefulsets. Each rank in the ring-all-reduce network is referred to as a "Tower". [Dask-workers](https://distributed.dask.org/en/latest/worker.html) may be deployed on each tower either during cluster creation via the `--num-dask-workers` paramater, or dynamically when `mpirun` programs are called.
 
 Kolotoc creates a scheduler node outside of the ring-all-reduce-network as a Kubernetes deployment. The scheduler node serves as an entrypoint to the cluster and is equipped with one [dask-scheduler](https://docs.dask.org/en/latest/scheduler-overview.html), [Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard), [Dask Bokeh](https://distributed.dask.org/en/latest/web.html), and [Jupyter Lab](https://jupyterlab.readthedocs.io/en/stable/).
-
 
 Some helpful commands:
 * `goto tower 0` -  Go to tower zero (rank-zero)
@@ -25,7 +24,7 @@ Some helpful commands:
 
 ### Start Cluster
 
-Run `./cluster.sh ---num-towers 4 num-carriers 1 --carrier-type n1-standard-4` to start a four rank ring-all-reduce network equipped with four dask-workers. You will need to authenticate via the [Google Cloud SDK](https://cloud.google.com/sdk/).
+Run `./cluster.sh ---num-towers 4 --tower-type n1-standard-4` to start a four rank ring-all-reduce network equipped with four dask-workers per tower. You will need to authenticate via the [Google Cloud SDK](https://cloud.google.com/sdk/).
 
 Type `./cluster.sh --help` for a list of available options:
 

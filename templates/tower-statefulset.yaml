@@ -81,6 +81,8 @@ spec:
           value: "{{ .Values.cuda.stubs }}"
         - name: NUM_DASK_WORKERS
           value: "{{ .Values.tower.workers }}"
+        - name: NUM_GPUS_PER_TOWER
+          value: "{{ .Values.tower.gpus }}"
         - name: DASK_SCHEDULER_ADDRESS
           value: {{ template "kolotoc.fullname" . }}-scheduler
      {{- if .Values.env }}
