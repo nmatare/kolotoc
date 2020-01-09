@@ -13,7 +13,7 @@ spec:
   replicas: {{ .Values.tower.number }}
   selector:
     matchLabels:
-      app: {{ template "kolotoc.name" . }}
+      app: {{ template "kolotoc.name" . }}-tower
       release: {{ .Release.Name }}
       heritage: {{ .Release.Service }}
       role: tower

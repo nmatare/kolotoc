@@ -20,7 +20,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ template "kolotoc.name" . }}
+        app: {{ template "kolotoc.name" . }}-scheduler
         release: {{ .Release.Name }}
         role: scheduler
     spec:
