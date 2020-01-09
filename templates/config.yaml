@@ -1,20 +1,17 @@
 ---
-{{- $towerNumber := .Values.tower.number -}}
+{{- $towerNumber := .Values.tower.number }}
+{{- $towerGpu := .Values.tower.gpus | max 1 }}
 {{- $name := include "kolotoc.fullname" . }}
-# {{- $slots := 1 }}
-# {{- if index .Values.tower "nvidia.com/gpu" }}
-# {{- $slots := index .Values.tower.gpus "nvidia.com/gpu" }}
-# {{- end }}
 
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ template "kolotoc.fullname" . }}
   labels:
-    heritage: {{ .Release.Deployment | quote }}
-    release: {{ .Release.Name | quote }}
+    app: {{ template "kolotoc.name" . }}
     chart: {{ template "kolotoc.chart" . }}
-    app: {{ template "kolotoc.fullname" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 
 data:
   scheduler.config: |
@@ -22,7 +19,7 @@ data:
 
   tower.config: |
     {{- range $i, $none := until (int $towerNumber) }}
-    {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $(($NUM_GPUS_PER_TOWER>4?$NUM_GPUS_PER_TOWER:1)) }}
+    {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $towerGpu }}
     {{- end }}
  
   cuda.config: |
@@ -220,7 +217,6 @@ data:
         --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
         --local-directory=/tmp \
         --reconnect
-
     fi
 
     sleep infinity

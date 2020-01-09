@@ -41,7 +41,7 @@ DOCKER_TAG="${DOCKER_TAG:-latest}"
 
 # Scheduler config
 SCHEDULER_NAME="scheduler" # Scheduler (entrypoint) config
-SCHEDULER_MACHINE_TYPE="n1-highmem-2"
+SCHEDULER_MACHINE_TYPE="n1-standard-2"
 SCHEDULER_DISK_SIZE=50
 SCHEDULER_DISK_TYPE="pd-standard"
 JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-kolotoc}"
@@ -51,22 +51,24 @@ BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 TOWER_NAME="tower"
 TOWER_MACHINE_TYPE="n1-standard-2"
 TOWER_GPU_TYPE="nvidia-tesla-k80"
-ZONE="us-east4-a"
+ZONE="us-east1-d"
 # k80/t4 -  us-east1-d
 # p100 - us-east1-b
 # p4   - us-east4-a
-TOWER_DISK_SIZE=50
+TOWER_DISK_SIZE=300
 TOWER_MACHINE_GPUS=0
 NUM_TOWER_NODES=1
 
 # Dask config
 NUM_DASK_WORKERS=""
 DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES=100
+DASK_DISTRIBUTED__WORKER__DAEMON=False
 DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE=1  # use kubernetes to manage
 DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL=100
-DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE="0.90"
+DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE=0.90
 DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT=300
 DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP=420
+# dask.config.get('distributed.worker')
 # https://github.com/dask/dask/blob/master/docs/source/configuration.rst
 # unlike spill/pause/target, terminate is set on the nanny and, currently,
 # there is no easy way to adjust parameters on the nanny. We hard-code this 
@@ -175,16 +177,10 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
     exit 1
   fi
 
-  if [[ "$TOWER_GPU_TYPE" == "nvidia-tesla-p4" || "$TOWER_GPU_TYPE" == "nvidia-tesla-p100" ]]; then
-    printf "${RED}'$TOWER_GPU_TYPE' GPUs are incompatible with cuDNN optimized cells. \
-    Change your GPU type to a supported card. ${OFF}\n"
-    exit 1
-  fi
-
   case "$TOWER_GPU_TYPE" in
     "nvidia-tesla-k80")
       shift
-      ZONE="us-east1-d"  # us-west1-b
+      ZONE="us-west1-b"  # us-west1-b
       ;;
     "nvidia-tesla-t4")
       shift
@@ -196,11 +192,11 @@ if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
       ;;
     "nvidia-tesla-p100")
       shift
-      ZONE="us-east1-b"
+      ZONE="us-west1-b"
       ;;
     "nvidia-tesla-v100")
       shift
-      ZONE="us-central1-b"
+      ZONE="us-west1-b"
       ;;
   esac
 
@@ -296,25 +292,20 @@ tower:
 env:
   BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
   GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
-  DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES	
+  DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES 
   DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
   DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
+  DASK_DISTRIBUTED__WORKER__DAEMON: $DASK_DISTRIBUTED__WORKER__DAEMON
   DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
   DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
   DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL: $DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL
 
 EOF
 
-kubectl --namespace kube-system create serviceaccount tiller
-kubectl create clusterrolebinding tiller \
-  --clusterrole cluster-admin \
-  --serviceaccount kube-system:tiller
-
 rm -rf "$HOME/.helm";
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
-  helm del --purge "$CLUSTER_NAME"
+  helm uninstall "$CLUSTER_NAME"
 fi
-helm init --service-account tiller --upgrade --wait;
 
 kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$SCHEDULER_NAME" \
@@ -324,7 +315,7 @@ kubectl taint nodes \
   -l "cloud.google.com/gke-nodepool=$CLUSTER_NAME-$TOWER_NAME" \
   "node"="tower":"NoSchedule" --overwrite
 
-helm install . --name "$CLUSTER_NAME" --values "$TEMP_DIR/configuration.yaml"
+helm install "$CLUSTER_NAME" . --values "$TEMP_DIR/configuration.yaml"
 
 printf "${GREEN}Waiting for helm chart to finish installation... ${OFF} \n"
 export SCHEDULER_POD=$(waitfor kubectl get pods -l \

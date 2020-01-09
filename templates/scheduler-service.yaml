@@ -4,10 +4,11 @@ kind: Service
 metadata:
   name: {{ template "kolotoc.fullname" . }}-scheduler
   labels:
-    app: {{ template "kolotoc.name" . }}
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
     chart: {{ template "kolotoc.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Deployment }}
+    app: {{ template "kolotoc.name" . }}
+
 spec:
   clusterIP: None
   ports:

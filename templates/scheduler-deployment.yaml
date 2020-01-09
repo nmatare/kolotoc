@@ -7,11 +7,16 @@ metadata:
     app: {{ template "kolotoc.name" . }}
     chart: {{ template "kolotoc.chart" . }}
     release: {{ .Release.Name }}
-    heritage: {{ .Release.Deployment }}
+    heritage: {{ .Release.Service }}
     role: scheduler
 spec:
   replicas: 1
-  serviceName: {{ template "kolotoc.fullname" . }}-scheduler
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ template "kolotoc.name" . }}-scheduler
+      release: {{ .Release.Name }}
   template:
     metadata:
       labels:

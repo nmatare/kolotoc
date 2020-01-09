@@ -27,7 +27,6 @@
 # command: ["/bin/sh", "-c"]
 # args: ["/entrypoint.sh && nvidia-smi -pm 1 && \
 #   nvidia-smi --auto-boost-default=DISABLED && sleep infinity"]
-
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet

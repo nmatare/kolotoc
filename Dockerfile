@@ -2,24 +2,26 @@
 # A set of open source technologies enabling the training and evaluation
 # of deep neural networks at scale.
 # Dask (data) + Tensorflow (computation) + Horovod (management) + MPI (communication)
+
 # Maintainer: Nathan Matare
 # Email: nathan.matare@gmail.com
 # Developer Notes:
-# (1) https://github.com/moby/moby/issues/35018; open issue cannot chown here
-#     $NB_USER is set from jupyter/base-notebook as 'jovyan'
-# (2) This dockerfile is modified from Horovod's because the Horovod images installs
+# (1) This dockerfile is modified from Horovod's because the Horovod images installs
 #     python packages with pip whereas the Dask notebook Dockerfile installs
 #     packages with conda, resulting in multiple libraries frustratingly
 #     installed into different directories. Conda is used hereinafter.
 
 # Install nvidia-docker image and set configuration details
-FROM daskdev/dask-notebook:latest AS dask
+
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 LABEL maintainer "Nathan Matare <nathan.matare@gmail.com>"
-ARG TENSORFLOW=2.0.0
 
-ENV NB_USER='jovyan'\
-  NB_UID='1000' \
+ARG TENSORFLOW_VERSION=2.0.0
+ARG HOROVOD_VERSION=0.18.2
+ARG CONDA_VERSION=4.7.10
+ARG MINICONDA_VERSION=4.6.14 
+
+ENV NB_UID='1000' \
   NB_GID='100' \
   LC_ALL=C.UTF-8 \
   LANG=C.UTF-8 \
@@ -35,7 +37,7 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   vim \
   wget \
   unzip \
-  g++-4.9 \
+  g++-4.8 \
   libnccl2 \
   libnccl-dev \
   dbus \
@@ -44,6 +46,8 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   debhelper \ 
   dkms \
   lsb-core \
+  librdmacm1 \
+  libibverbs1 \
   apt-transport-https \
   ca-certificates \
   libjpeg-dev \
@@ -105,28 +109,49 @@ ENV PATH="/usr/local/cuda/bin${PATH:+:${PATH}}"
 RUN echo NCCL_DEBUG=DEBUG >> /etc/nccl.conf && \
   rm /etc/update-motd.d/10-help-text
 
-# 'Install' Dask and Jupyter from daskdev/dask-notebook
-# Unlike 'FROM daskdev/dask-notebook' which copies environment variables,
-# 'COPY --from=daskdev/dask-notebook' does not, so these must be set.
-# https://github.com/moby/moby/issues/34482
-COPY --from=dask \
-  /home /opt /usr/local/bin/*.sh /usr/local/bin/fix-permissions \
-  /usr/bin/*.sh /etc/jupyter /etc/passwd /etc/shadow /etc/group \
-  /etc/gshadow /tmp/
-ENV PATH=/opt/conda/bin:${PATH}
+# Install Conda, Dask, and Jupyter Notebook
+ENV CONDA_DIR=/opt/conda \
+  PATH=/opt/conda/bin:$PATH 
 
-RUN awk '/^jovyan/' /tmp/passwd >> /etc/passwd && \
-  awk '/^jovyan/' /tmp/shadow  >> /etc/shadow && \
-  awk '/^wheel/' /tmp/group >> /etc/group && \
-  awk '/^wheel/' /tmp/gshadow  >> /etc/gshadow && \
-  mv /tmp/*.sh /tmp/fix-permissions /usr/local/bin/ && \
-  mv /tmp/conda /tmp/app /opt && fix-permissions /opt/conda && \
-  mv /tmp/${NB_USER} /home/${NB_USER} && fix-permissions /home/${NB_USER} && \
-  rm -rf /tmp/*
+RUN cd /tmp && \
+  wget --quiet https://repo.continuum.io/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh && \
+  echo "718259965f234088d785cad1fbd7de03 *Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh" | md5sum -c - && \
+  /bin/bash Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh -f -b -p $CONDA_DIR && \
+  rm Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh && \
+  echo "conda ${CONDA_VERSION}" >> $CONDA_DIR/conda-meta/pinned && \
+  $CONDA_DIR/bin/conda config --system --prepend channels conda-forge && \
+  $CONDA_DIR/bin/conda config --system --set auto_update_conda false && \
+  $CONDA_DIR/bin/conda config --system --set show_channel_urls true && \
+  $CONDA_DIR/bin/conda install --quiet --yes conda && \
+  $CONDA_DIR/bin/conda update --all --quiet --yes && \
+  conda list python | grep '^python ' | tr -s ' ' | cut -d '.' -f 1,2 | sed 's/$/.*/' >> $CONDA_DIR/conda-meta/pinned && \
+  conda clean --all -f -y && \
+  rm -rf /home/$NB_USER/.cache/yarn 
+
+RUN conda install --quiet --yes --freeze-installed \
+  -c conda-forge \
+  python-blosc \
+  cytoolz \
+  dask==2.6.0 \
+  nomkl \
+  numpy==1.17.2 \
+  pandas==0.25.2 \
+  ipywidgets \
+  dask-labextension==1.0.3 \
+  python-graphviz \
+  notebook=6.0.0 \
+  jupyterhub=1.0.0 \
+  jupyterlab=1.1.3 && \
+  jupyter notebook --generate-config && \
+  npm cache clean --force && \
+  conda clean --all -f -y && \
+  jupyter lab clean && \
+  jlpm cache clean && \
+  rm -rf /opt/conda/pkgs && \
+  rm -rf $CONDA_DIR/share/jupyter/lab/staging
 
 # Default password is 'kolotoc': it's very advisable to change the default password
-RUN mkdir /root/.jupyter/ && \
-  openssl req -x509 -nodes -days 666 -newkey rsa:4096 \
+RUN openssl req -x509 -nodes -days 666 -newkey rsa:4096 \
     -keyout /root/.jupyter/jupyter.key -out /root/.jupyter/jupyter.pem \
     -subj "/C=US/ST=IL/L=Springfield/O=kolotoc/CN=www.dask.org" && \
   echo "c = get_config()" >> /root/.jupyter/jupyter_notebook_config.py && \
@@ -147,6 +172,7 @@ RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add - && \
   pip install jupyter-server-proxy jupyter_contrib_nbextensions dask_labextension && \
   jupyter contrib nbextension install && \
   jupyter nbextension enable spellchecker/main && \
+  jupyter labextension install @jupyter-widgets/jupyterlab-manager dask-labextension && \
   jupyter labextension install @jupyterlab/celltags dask-labextension && \
   jupyter serverextension enable --py --sys-prefix dask_labextension
 
@@ -174,9 +200,10 @@ RUN echo "hwloc_base_binding_policy = none" >> /usr/local/etc/openmpi-mca-params
 
 # Install Python packages into the conda base env using CUDA stubs
 # https://www.anaconda.com/blog/developer-blog/using-pip-in-a-conda-environment/
-RUN pip install tensorflow-gpu==${TENSORFLOW} git+https://github.com/wookayin/gpustat-web.git && \
+RUN pip install tensorflow-gpu==${TENSORFLOW_VERSION} && \
   ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
-  HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_WITH_TENSORFLOW=1 pip install horovod --no-cache-dir && \
+  CXX=/usr/bin/g++-4.8 HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_WITH_TENSORFLOW=1 \
+    pip install horovod==${HOROVOD_VERSION} --no-cache-dir && \
   ldconfig
 
 RUN mkdir -p /scratch

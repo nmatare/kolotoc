@@ -8,7 +8,7 @@ metadata:
     chart: {{ template "kolotoc.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
-    role: tower
+    role: tower  
 spec:
   replicas: {{ .Values.tower.number }}
   selector:
@@ -28,11 +28,6 @@ spec:
         heritage: {{ .Release.Service }}
         role: tower
     spec:
-      selector:
-        matchLabels:
-          app: {{ template "kolotoc.name" . }}
-          release: {{ .Release.Name }}
-          role: tower
       hostNetwork: True
       hostPID: False
       dnsPolicy: ClusterFirstWithHostNet
