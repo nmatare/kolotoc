@@ -34,3 +34,7 @@ tower:
   number: 1
   workers: 1
   gpus: 0
+
+storage:
+  mountPath: /mnt/disks/shared
+  size: 100Gi

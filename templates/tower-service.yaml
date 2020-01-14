@@ -8,7 +8,6 @@ metadata:
     release: {{ .Release.Name | quote }}
     chart: {{ template "kolotoc.chart" . }}
     app: {{ template "kolotoc.name" . }}
-
 spec:
   clusterIP: None
   ports:
@@ -16,6 +15,6 @@ spec:
     port: {{ .Values.ssh.port }}
     targetPort: {{ .Values.ssh.port }}
   selector:
-    app: {{ template "kolotoc.name" . }}
+    app: {{ template "kolotoc.name" . }}-tower
     release: {{ .Release.Name }}
     role: tower

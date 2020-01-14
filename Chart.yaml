@@ -9,4 +9,4 @@ sources:
 - https://distributed.dask.org/en/latest/
 - https://github.com/uber/horovod/
 - https://www.tensorflow.org/
-version: 1.1.0
+version: 1.2.0

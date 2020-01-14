@@ -213,6 +213,10 @@ if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
 else
 
   gcloud config set project "$GOOGLE_PROJECT_NAME"
+  gcloud auth activate-service-account --key-file "$SERVICE_FILE"
+  gcloud auth configure-docker
+
+  gcloud config set project "$GOOGLE_PROJECT_NAME"
   printf "${GREEN}Creating cluster $CLUSTER_NAME on Google Cloud... ${OFF}\n"
   # Known issue where you can't modify the name of the default node-pool; so
   # start the cluster as a 'default-pool', but delete this node pool at the end
@@ -254,6 +258,8 @@ else
   gcloud container node-pools \
   delete "default-pool" --quiet --cluster "$CLUSTER_NAME" --zone="$ZONE"
 fi
+
+gcloud container clusters get-credentials "${CLUSTER_NAME}" --zone "${ZONE}"
 
 # Install NVIDIA drivers if using GPUs
 if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then
