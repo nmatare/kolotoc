@@ -209,7 +209,7 @@ CLUSTER="$(gcloud container clusters list --format="value(name)")"
 
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   printf "${GREEN}Updating existing cluster $CLUSTER_NAME... ${OFF}\n"
-  kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
+  kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets,pv,pvc
 else
 
   gcloud config set project "$GOOGLE_PROJECT_NAME"
@@ -294,6 +294,10 @@ tower:
 
   gpus: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
     echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
+
+storage:
+  mountPath: /mnt/disks/shared
+  size: 100Gi
 
 env:
   BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION

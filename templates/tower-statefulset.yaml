@@ -2,7 +2,7 @@
 apiVersion: apps/v1beta2
 kind: StatefulSet
 metadata:
-  name: {{ template "kolotoc.fullname" . }}-tower
+  name: {{ template "kolotoc.fullname" . }}
   labels:
     app: {{ template "kolotoc.name" . }}
     chart: {{ template "kolotoc.chart" . }}
@@ -13,11 +13,11 @@ spec:
   replicas: {{ .Values.tower.number }}
   selector:
     matchLabels:
-      app: {{ template "kolotoc.name" . }}-tower
+      app: {{ template "kolotoc.name" . }}
       release: {{ .Release.Name }}
       heritage: {{ .Release.Service }}
       role: tower
-  serviceName: {{ template "kolotoc.fullname" . }}-tower
+  serviceName: {{ template "kolotoc.fullname" . }}
   podManagementPolicy: Parallel
   template:
     metadata:

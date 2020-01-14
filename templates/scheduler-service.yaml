@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "kolotoc.fullname" . }}-scheduler
+  name: {{ template "kolotoc.fullname" . }}
   labels:
     heritage: {{ .Release.Service | quote }}
     release: {{ .Release.Name | quote }}
@@ -15,6 +15,6 @@ spec:
     port: {{ .Values.ssh.port }}
     targetPort: {{ .Values.ssh.port }}
   selector:
-    app: {{ template "kolotoc.name" . }}-scheduler
+    app: {{ template "kolotoc.name" . }}
     release: {{ .Release.Name }}
     role: scheduler

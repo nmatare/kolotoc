@@ -2,7 +2,7 @@
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: {{ template "kolotoc.fullname" . }}-scheduler
+  name: {{ template "kolotoc.fullname" . }}
   labels:
     app: {{ template "kolotoc.name" . }}
     chart: {{ template "kolotoc.chart" . }}
@@ -15,12 +15,12 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: {{ template "kolotoc.name" . }}-scheduler
+      app: {{ template "kolotoc.name" . }}
       release: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ template "kolotoc.name" . }}-scheduler
+        app: {{ template "kolotoc.name" . }}
         release: {{ .Release.Name }}
         role: scheduler
     spec:
