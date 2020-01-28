@@ -19,7 +19,7 @@ data:
 
   tower.config: |
     {{- range $i, $none := until (int $towerNumber) }}
-    {{ $name }}-tower-{{ $i }}.{{ $name }}-tower slots={{ $towerGpu }}
+    {{ $name }}-{{ $i }}.{{ $name }} slots={{ $towerGpu }}
     {{- end }}
  
   cuda.config: |

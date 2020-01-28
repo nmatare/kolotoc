@@ -209,7 +209,7 @@ CLUSTER="$(gcloud container clusters list --format="value(name)")"
 
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   printf "${GREEN}Updating existing cluster $CLUSTER_NAME... ${OFF}\n"
-  kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets,pv,pvc
+  kubectl delete --all pods,services,deployments,jobs,statefulsets,secrets,configmaps,daemonsets
 else
 
   gcloud config set project "$GOOGLE_PROJECT_NAME"
@@ -295,10 +295,6 @@ tower:
   gpus: $(if [[ "$TOWER_MACHINE_GPUS" -gt "0" ]]; then 
     echo "$TOWER_MACHINE_GPUS"; else echo "0"; fi)
 
-storage:
-  mountPath: /mnt/disks/shared
-  size: 100Gi
-
 env:
   BUILD_KEY_LOCATION: $BUILD_KEY_LOCATION
   GIT_SSH_COMMAND: "ssh -p 22 -i $BUILD_KEY_LOCATION -o StrictHostKeyChecking=no"
@@ -312,7 +308,6 @@ env:
 
 EOF
 
-rm -rf "$HOME/.helm";
 if [[ "$CLUSTER" == "$CLUSTER_NAME" ]]; then
   helm uninstall "$CLUSTER_NAME"
 fi
@@ -330,27 +325,6 @@ helm install "$CLUSTER_NAME" . --values "$TEMP_DIR/configuration.yaml"
 printf "${GREEN}Waiting for helm chart to finish installation... ${OFF} \n"
 export SCHEDULER_POD=$(waitfor kubectl get pods -l \
   role=scheduler -o jsonpath="{.items[0].metadata.name}")
-
-# Expose Jupyter notebook service
-kubectl expose pod "$SCHEDULER_POD" \
-  --name="jupyter-lab" \
-  --type="NodePort" \
-  --port="8889" \
-  --target-port="8889"
-
-# Expose Dask notebook service
-kubectl expose pod "$SCHEDULER_POD" \
-  --name="dashboard" \
-  --type="NodePort" \
-  --port="8687" \
-  --target-port="8687"
-
-# Expose Tensorboard service
-kubectl expose pod "$SCHEDULER_POD" \
-  --name="tensorboard" \
-  --type="NodePort" \
-  --port="5056" \
-  --target-port="5056"
 
 # Output to user console
 echo ""

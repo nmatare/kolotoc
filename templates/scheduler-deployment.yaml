@@ -28,9 +28,6 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       hostPID: False
       volumes:
-      - name: shared-storage
-        persistentVolumeClaim:
-          claimName: {{ template "kolotoc.fullname" . }}-storage
       - name: {{ template "kolotoc.fullname" . }}-config
         configMap:
           name: {{ template "kolotoc.fullname" . }}
