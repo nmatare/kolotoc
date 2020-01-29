@@ -1,5 +1,5 @@
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ template "kolotoc.fullname" . }}
@@ -8,15 +8,15 @@ metadata:
     chart: {{ template "kolotoc.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
-    role: tower  
+    role: ring  
 spec:
-  replicas: {{ .Values.tower.number }}
+  replicas: {{ .Values.ring.number }}
   selector:
     matchLabels:
       app: {{ template "kolotoc.name" . }}
       release: {{ .Release.Name }}
       heritage: {{ .Release.Service }}
-      role: tower
+      role: ring
   serviceName: {{ template "kolotoc.fullname" . }}
   podManagementPolicy: Parallel
   template:
@@ -26,11 +26,11 @@ spec:
         chart: {{ template "kolotoc.chart" . }}
         release: {{ .Release.Name }}
         heritage: {{ .Release.Service }}
-        role: tower
+        role: ring
     spec:
-      hostNetwork: True
-      hostPID: False
-      dnsPolicy: ClusterFirstWithHostNet
+      # hostNetwork: True
+      # hostPID: False
+      # dnsPolicy: ClusterFirstWithHostNet
       volumes:
       - name: {{ template "kolotoc.fullname" . }}-config
         configMap:
@@ -39,8 +39,8 @@ spec:
           - key: scheduler.config
             path: scheduler.hostfile
             mode: 438
-          - key: tower.config
-            path: tower.hostfile
+          - key: ring.config
+            path: ring.hostfile
             mode: 438
           - key: cuda.config
             path: cuda.sh
@@ -51,7 +51,7 @@ spec:
           - key: ssh.config
             path: ssh.sh
             mode: 365
-          - key: tower.run
+          - key: ring.run
             path: run.sh
             mode: 365
       - name: {{ template "kolotoc.fullname" . }}-secret
@@ -64,7 +64,7 @@ spec:
           - key: host-key-pub
             path: authorized_keys
       containers:
-      - name: tower
+      - name: ring
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
@@ -75,9 +75,7 @@ spec:
         - name: CUDA_STUB_LOCATION
           value: "{{ .Values.cuda.stubs }}"
         - name: NUM_DASK_WORKERS
-          value: "{{ .Values.tower.workers }}"
-        - name: NUM_GPUS_PER_TOWER
-          value: "{{ .Values.tower.gpus }}"
+          value: "{{ .Values.ring.workers }}"
         - name: DASK_SCHEDULER_ADDRESS
           value: {{ template "kolotoc.fullname" . }}-scheduler
      {{- if .Values.env }}
@@ -89,7 +87,8 @@ spec:
         securityContext:
           privileged: true
         ports:
-        - containerPort: {{ .Values.ssh.port }}
+        - name: ssh
+          containerPort: {{ .Values.ssh.port }}
         volumeMounts:
         - name: {{ template "kolotoc.fullname" . }}-config
           mountPath: /kolotoc/generated
@@ -106,11 +105,6 @@ spec:
                 . /kolotoc/generated/run.sh"]
         resources:
           requests:
-            nvidia.com/gpu: {{ .Values.tower.gpus }}
+            nvidia.com/gpu: {{ .Values.ring.gpus }}
           limits:
-            nvidia.com/gpu: {{ .Values.tower.gpus }}            
-      tolerations:
-        - key: "node"
-          operator: "Equal"
-          value: "tower"
-          effect: "NoSchedule"
+            nvidia.com/gpu: {{ .Values.ring.gpus }}            

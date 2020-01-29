@@ -24,13 +24,13 @@ scheduler:
   tensorboardPort: 5056
   resources:
     requests:
-      cpu: 1
-      memory: 5G
+      cpu: 1000m
+      memory: 2Gi
     limits:
-      cpu: 1
-      memory: 5G
+      cpu: 2000m
+      memory: 5Gi
 
-tower:
+ring:
   number: 1
-  workers: 1
+  workers: 1  # one dask-worker process per pod
   gpus: 0

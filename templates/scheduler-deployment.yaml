@@ -24,9 +24,9 @@ spec:
         release: {{ .Release.Name }}
         role: scheduler
     spec:
-      hostNetwork: True
-      dnsPolicy: ClusterFirstWithHostNet
-      hostPID: False
+      # hostNetwork: True
+      # dnsPolicy: ClusterFirstWithHostNet
+      # hostPID: False
       volumes:
       - name: {{ template "kolotoc.fullname" . }}-config
         configMap:
@@ -35,8 +35,8 @@ spec:
           - key: scheduler.config
             path: scheduler.hostfile
             mode: 438
-          - key: tower.config
-            path: tower.hostfile
+          - key: ring.config
+            path: ring.hostfile
             mode: 438
           - key: ssh.config
             path: ssh.sh
@@ -84,7 +84,8 @@ spec:
         securityContext:
           privileged: true
         ports:
-        - containerPort: {{ .Values.ssh.port }}
+        - name: ssh
+          containerPort: {{ .Values.ssh.port }}
         volumeMounts:
         - name: {{ template "kolotoc.fullname" . }}-config
           mountPath: /kolotoc/generated
@@ -97,8 +98,5 @@ spec:
         command: ["/bin/bash", "-c"]
         args: [". /kolotoc/generated/ssh.sh && 
                 . /kolotoc/generated/run.sh"]
-      tolerations:
-        - key: "node"
-          operator: "Equal"
-          value: "scheduler"
-          effect: "NoSchedule"
+        resources:
+{{ tpl (toYaml .Values.scheduler.resources | indent 10) . }}

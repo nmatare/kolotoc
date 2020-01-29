@@ -1,6 +1,6 @@
 ---
-{{- $towerNumber := .Values.tower.number }}
-{{- $towerGpu := .Values.tower.gpus | max 1 }}
+{{- $ringNumber := .Values.ring.number }}
+{{- $ringGpu := .Values.ring.gpus | max 1 }}
 {{- $name := include "kolotoc.fullname" . }}
 
 apiVersion: v1
@@ -17,9 +17,9 @@ data:
   scheduler.config: |
     {{ $name }}-scheduler
 
-  tower.config: |
-    {{- range $i, $none := until (int $towerNumber) }}
-    {{ $name }}-{{ $i }}.{{ $name }} slots={{ $towerGpu }}
+  ring.config: |
+    {{- range $i, $none := until (int $ringNumber) }}
+    {{ $name }}-{{ $i }}.{{ $name }} slots={{ $ringGpu }}
     {{- end }}
  
   cuda.config: |
@@ -118,14 +118,12 @@ data:
         ;;
       esac
 
-      cat /kolotoc/generated/tower.hostfile > /root/$PROJECT_NAME/.hostfile
-
       mpiexec --allow-run-as-root \
           --mca orte_keep_fqdn_hostnames t \
           --mca plm rsh --mca oob tcp --mca routed debruijn \
           -mca btl_tcp_if_exclude lo,docker0 \
           --timeout 30 \
-          --hostfile /root/$PROJECT_NAME/.hostfile \
+          --hostfile /kolotoc/generated/ring.hostfile \
           -x PYTHONPATH \
           -x NCCL_SOCKET_IFNAME=^lo,docker0 \
           /bin/bash -c "$DISTRO_COMMAND"
@@ -137,25 +135,25 @@ data:
         nodes="$(wc -l $1 | cut -d ' ' -f1)"
         
         if [[ "$2" -ge "$nodes" ]]; then
-          echo "Machine-node-$2 does not exist. "
+          echo "ring-rank-$2 does not exist. "
           exit
         fi
-        echo "Going to machine-node-$2. "
+        echo "Going to ring-rank-$2. "
         ssh "$(head -"$(($2 + 1))" $1 | tail -1 | cut -d ' ' -f1)"
 
       }
 
       if [[ -z "$2" ]]; then
-        echo "Please specify a machine-node. Got $2. "
+        echo "Please specify a ring rank. Got $2. "
         exit
       fi
 
       case "$1" in
-        "tower")
-          _goto_machine_node /kolotoc/generated/tower.hostfile $2
+        "ring")
+          _goto_machine_node /kolotoc/generated/ring.hostfile $2
         ;;
         *)
-          echo "Please specify a 'tower'. Got $1. "
+          echo "Please specify a 'ring'. Got $1. "
           exit 1
         ;;
       esac
@@ -176,7 +174,7 @@ data:
 
     function monitor_gpus(){
       pip install git+https://github.com/wookayin/gpustat-web.git
-      python -m gpustat_web --port 48109 /kolotoc/generated/tower.hostfile
+      python -m gpustat_web --port 48109 /kolotoc/generated/ring.hostfile
     }
 
     declare -f repo goto reboot_dask >> /root/.bashrc
@@ -202,7 +200,7 @@ data:
     repo update master & 
     sleep infinity
 
-  tower.run: |
+  ring.run: |
     #!/bin/bash
     set -x
     source activate $PROJECT_NAME
@@ -210,7 +208,7 @@ data:
     if [[ "$NUM_DASK_WORKERS" -gt "0" ]]; then
       export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
       dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
-        --name=tower-worker-$(hostname -i) \
+        --name=ring-worker-$(hostname -i) \
         --nprocs=$NUM_DASK_WORKERS \
         --nthreads=1 \
         --memory-limit="$DASK_WORKER_MEM GB" \

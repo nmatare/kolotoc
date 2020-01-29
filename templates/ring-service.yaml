@@ -17,4 +17,4 @@ spec:
   selector:
     app: {{ template "kolotoc.name" . }}
     release: {{ .Release.Name }}
-    role: tower
+    role: ring
