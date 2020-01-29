@@ -34,13 +34,13 @@ data:
       export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/nvidia/bin:/usr/local/cuda/bin/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
       
     else 
-      export LD_LIBRARY_PATH=$CUDA_STUB_LOCATION/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-      ldconfig $CUDA_STUB_LOCATION
+      export LD_LIBRARY_PATH=${CUDA_STUB_LOCATION}/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+      ldconfig ${CUDA_STUB_LOCATION}
     fi
 
     echo "NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}" >> /etc/environment
     echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> /etc/environment
-    sed -i "/\<PATH\>/cPATH=$PATH" /etc/environment
+    sed -i "/\<PATH\>/cPATH=${PATH}" /etc/environment
 
   ssh.wait: |
     #!/bin/bash
@@ -68,7 +68,7 @@ data:
         set -e   
     }
 
-    retry 30 ssh -o ConnectTimeout=30 -q $DASK_SCHEDULER_ADDRESS exit
+    retry 30 ssh -o ConnectTimeout=30 -q ${DASK_SCHEDULER_ADDRESS} exit
 
   ssh.config: |
     #!/bin/bash
@@ -83,8 +83,8 @@ data:
     yes | cp /etc/secret-volume/authorized_keys /root/.ssh/authorized_keys
     set -e
 
-    echo "Port $OPENMPI_SSH_PORT" > /root/.ssh/config
-    sed -i "s/^Port.*/Port $OPENMPI_SSH_PORT /g" /etc/ssh/sshd_config
+    echo "Port ${OPENMPI_SSH_PORT}" > /root/.ssh/config
+    sed -i "s/^Port.*/Port ${OPENMPI_SSH_PORT} /g" /etc/ssh/sshd_config
     echo "StrictHostKeyChecking no" >> /root/.ssh/config
     /usr/sbin/sshd
 
@@ -100,17 +100,17 @@ data:
 
       case "$1" in
         "update")
-          DISTRO_COMMAND="chmod 600 $BUILD_KEY_LOCATION && \
+          DISTRO_COMMAND="chmod 600 ${BUILD_KEY_LOCATION} && \
             git fetch --all && \
             git reset --hard origin/$2 && \
-            chmod 600 $BUILD_KEY_LOCATION && \
+            chmod 600 ${BUILD_KEY_LOCATION} && \
             git pull origin $2"
         ;;
         "checkout")
           DISTRO_COMMAND="git checkout $2"
         ;;
         "clear")
-          DISTRO_COMMAND="rm -rf /root/$PROJECT_NAME/$2"
+          DISTRO_COMMAND="rm -rf /root/${PROJECT_NAME}/$2"
         ;;
         *)
           echo "Please specify either 'update', 'checkout' or 'clear'. Got $1. "
@@ -126,7 +126,7 @@ data:
           --hostfile /kolotoc/generated/ring.hostfile \
           -x PYTHONPATH \
           -x NCCL_SOCKET_IFNAME=^lo,docker0 \
-          /bin/bash -c "$DISTRO_COMMAND"
+          /bin/bash -c "${DISTRO_COMMAND}"
     }
 
     function goto(){
@@ -162,13 +162,13 @@ data:
     function reboot_dask(){
       echo "Rebooting the Dask cluster... "
       python -c "from dask.distributed import Client; \
-        Client('*:$DASK_SCHEDULER_PORT').restart()"
+        Client('*:${DASK_SCHEDULER_PORT}').restart()"
 
       pkill dask-scheduler > /dev/null 2>&1
       sleep 1
       dask-scheduler --host "*" \
-        --port=$DASK_SCHEDULER_PORT \
-        --dashboard-address="*:$DASK_DASHBOARD_PORT" > /dev/null 2>&1 &
+        --port=${DASK_SCHEDULER_PORT} \
+        --dashboard-address="*:${DASK_DASHBOARD_PORT}" > /dev/null 2>&1 &
       echo "Success! The Dask cluster was rebooted. "
     }
 
@@ -178,24 +178,21 @@ data:
     }
 
     declare -f repo goto reboot_dask >> /root/.bashrc
-    ldconfig $CUDA_STUB_LOCATION
+    ldconfig ${CUDA_STUB_LOCATION}
 
-    source activate $PROJECT_NAME
+    source activate ${PROJECT_NAME}
 
-    $CONDA_PREFIX/bin/python -m ipykernel install --user \
-        --name $PROJECT_NAME  --display-name "P3.7-$PROJECT_NAME" 
+    ${CONDA_PREFIX}/bin/python -m ipykernel install --user \
+        --name ${PROJECT_NAME}  --display-name "P3.7-${PROJECT_NAME}" 
 
-    echo "IRkernel::installspec(user=FALSE, displayname='R$PROJECT_NAME')" | \
-    $CONDA_PREFIX/bin/R --slave  
+    echo "IRkernel::installspec(user=FALSE, displayname='R${PROJECT_NAME}')" | \
+    ${CONDA_PREFIX}/bin/R --slave  
 
-    jupyter lab --allow-root --port=$JUPYTER_LAB_PORT > /dev/null 2>&1 &
+    jupyter lab --allow-root --port=${JUPYTER_LAB_PORT} > /dev/null 2>&1 &
     
-    tensorboard --port=$TENSORBOARD_PORT \
-      --logdir=/root/$PROJECT_NAME/checkpoints/ > /dev/null 2>&1 &
-
     dask-scheduler --host "*" \
-      --port=$DASK_SCHEDULER_PORT \
-      --dashboard-address="*:$DASK_DASHBOARD_PORT" &
+      --port=${DASK_SCHEDULER_PORT} \
+      --dashboard-address="*:${DASK_DASHBOARD_PORT}" &
 
     repo update master & 
     sleep infinity
@@ -203,16 +200,23 @@ data:
   ring.run: |
     #!/bin/bash
     set -x
-    source activate $PROJECT_NAME
+    source activate ${PROJECT_NAME}
 
-    if [[ "$NUM_DASK_WORKERS" -gt "0" ]]; then
+    # Launch Tensorboard on rank-0
+    if [[ "$(cut -d'-' -f5 <<< $(hostname -a))" -eq 0 ]]; then
+      tensorboard \
+        --port=${TENSORBOARD_PORT} \
+        --bind_all \
+        --logdir=/root/${PROJECT_NAME}/checkpoints &
+    fi
+
+    if [[ "${NUM_DASK_WORKERS}" -gt "0" ]]; then
       export DASK_WORKER_MEM=$(python -c "print(float('$(free -mh | grep Mem | awk '{print $7}')'.strip('G')) / int($NUM_DASK_WORKERS))")
-      dask-worker $DASK_SCHEDULER_ADDRESS:$DASK_SCHEDULER_PORT \
+      dask-worker ${DASK_SCHEDULER_ADDRESS}:${DASK_SCHEDULER_PORT} \
         --name=ring-worker-$(hostname -i) \
-        --nprocs=$NUM_DASK_WORKERS \
+        --nprocs=${NUM_DASK_WORKERS} \
         --nthreads=1 \
-        --memory-limit="$DASK_WORKER_MEM GB" \
-        --resources="GPU=0 CPU=1 MEM=$DASK_WORKER_MEM" \
+        --memory-limit="${DASK_WORKER_MEM} GB" \
         --local-directory=/tmp \
         --reconnect
     fi

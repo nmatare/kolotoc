@@ -11,20 +11,20 @@ function usage {
   echo "Usage:"
   echo "  $script_name [--cluster-name cluster_name] "
 
-  echo "               [--num-machine num_machine]"
+  echo "               [--num-nodes num_nodes]"
   echo "               [--machine-type machine_type]"
-  echo "               [--num-gpus num_gpus]"
+  echo "               [--num-gpus-per-node num_gpus]"
   echo "               [--gpu-type gpu_type]"
 
-  echo "               [--num-rings num_rings]"
+  echo "               [--num-rings-per-node num_rings]"
   echo "               [--help]"
 
   echo "  Parameters: "
   echo "  cluster_name:       the name of the Kubernetes cluster. (default: kolotoc-cluster-uuid)"
-  echo "  num_rings:          the total number of pods linked together in a ring-all-reduce network. (default: 1)"
-  echo "  machine_type:       the machine type used by pods. (default: n1-highmem-2)"
-  echo "  num_machine:        the number of total machine nodes (must manually scale with the number of pods) (default: 1)"
-  echo "  num_gpus:           the number of available gpus per machine(node) (default: 0)"
+  echo "  num_rings_per_node: the number of pods linked together in a ring-all-reduce network, per node (default: 1)"
+  echo "  machine_type:       the desired machine type (default: n1-highmem-2)"
+  echo "  num_nodes:          the number of total machine nodes (must manually scale with the number of pods) (default: 1)"
+  echo "  num_gpus_per_node:  the number of available gpus per machine(node) (default: 0)"
   echo "  gpu_type:           the type of gpu to attach to each pod. (default: nvidia-tesla-k80)"
   echo "  help:               print setup. "
 }
@@ -38,7 +38,7 @@ DOCKER_TAG="${DOCKER_TAG:-latest}"
 JUPYTER_NOTEBOOK_PASSWORD="${JUPYTER_NOTEBOOK_PASSWORD:-kolotoc}"
 BUILD_KEY_LOCATION="/root/$PROJECT_NAME/inst/$PROJECT_NAME-build.key"
 
-NUM_MACHINE=1
+NUM_NODES=1
 MACHINE_TYPE="n1-standard-2"
 GPU_TYPE="nvidia-tesla-k80"
 ZONE="us-east1-d"
@@ -47,7 +47,8 @@ ZONE="us-east1-d"
 # p4   - us-east4-a
 MACHINE_DISK_SIZE=300
 MACHINE_GPUS=0
-NUM_RINGS=1
+NUM_RANKS_PER_NODE=1
+GOOGLE_CLOUD_NVIDIA_DEVICE_DRIVER=https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded.yaml
 
 # Dask config
 NUM_DASK_WORKERS=""
@@ -74,19 +75,19 @@ setargs(){
         shift
         CLUSTER_NAME=$1
         ;;
-      "--num-rings")
+      "--num-rings-per-node")
         shift
-        NUM_RINGS=$1
+        NUM_RANKS_PER_NODE=$1
         ;;
-      "--num-machine")
+      "--num-nodes")
         shift
-        NUM_MACHINE=$1
+        NUM_NODES=$1
         ;;
       "--machine-type")
         shift
         MACHINE_TYPE=$1
         ;;        
-      "--num-gpus")
+      "--num-gpus-per-node")
         shift
         MACHINE_GPUS=$1
         ;;
@@ -124,7 +125,7 @@ declare -A AVAL_MACHINE_TYPES=(
   ["custom-8-15360"]="8 15"
   ["custom-8-20480"]="8 20"
   ["custom-8-25600"]="8 25"
-  ["custom-2-25600"]="2 25"
+  ["custom-4-25600"]="4 30"
   ["n1-standard-1"]="1 3.75" # minimum requirements
   ["n1-standard-2"]="2 7.5"
   ["n1-standard-4"]="4 15"
@@ -205,11 +206,11 @@ else
 
   printf "${GREEN}Creating cluster ${CLUSTER_NAME} on Google Cloud... ${OFF}\n"
 
+    # --preemptible \
   gcloud container clusters \
   create "$CLUSTER_NAME" --no-user-output-enabled \
     --no-async \
-    --preemptible \
-    --num-nodes="${NUM_MACHINE}" \
+    --num-nodes="${NUM_NODES}" \
     --machine-type="${MACHINE_TYPE}" \
     --disk-size="${MACHINE_DISK_SIZE}" \
     --zone="${ZONE}" \
@@ -221,17 +222,20 @@ gcloud container clusters get-credentials "${CLUSTER_NAME}" --zone "${ZONE}"
 # Install NVIDIA drivers if using GPUs
 if [[ "${MACHINE_GPUS}" -gt "0" ]]; then
   printf "${GREEN}Applying GPU device installer... ${OFF}\n"
-  kubectl apply -f daemonset-preloaded.yaml
+  kubectl apply -f "${GOOGLE_CLOUD_NVIDIA_DEVICE_DRIVER}"
   kubectl label nodes $(kubectl get nodes -l \
     cloud.google.com/gke-nodepool=default-pool \
     -o jsonpath="{.items[0].metadata.name}") hardware-type=NVIDIAGPU  --overwrite
+
 fi
 
 ssh-keygen -qN "" -f ${TEMP_DIR}/id_rsa
 chmod 400 ${TEMP_DIR}/id_rsa
 
-# Keeping the "one process per container best practice in mind", we limit
-# one dask worker (process) per each pod.
+# Keeping the "one process per container" best practice in mind, we limit
+# one dask worker (process) per rank(pod).
+# "The Docker developers advocate the philosophy of running a
+# single __logical__ service per container."
 
 cat << EOF > "${TEMP_DIR}/configuration.yaml"
 ---
@@ -248,7 +252,7 @@ $(cat ${TEMP_DIR}/id_rsa | sed 's/^/    /g')
 $(cat ${TEMP_DIR}/id_rsa.pub | sed 's/^/    /g')
 
 ring:
-  number: ${NUM_RINGS}
+  number: $((${NUM_RANKS_PER_NODE} * ${NUM_NODES}))
   workers: 1
   gpus: $(if [[ "${MACHINE_GPUS}" -gt "0" ]]; then 
     echo "${MACHINE_GPUS}"; else echo "0"; fi)
@@ -256,14 +260,13 @@ ring:
 env:
   BUILD_KEY_LOCATION: ${BUILD_KEY_LOCATION}
   GIT_SSH_COMMAND: "ssh -p 22 -i ${BUILD_KEY_LOCATION} -o StrictHostKeyChecking=no"
-  DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: $DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES 
-  DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: $DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
-  DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: $DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP
-  DASK_DISTRIBUTED__WORKER__DAEMON: $DASK_DISTRIBUTED__WORKER__DAEMON
-  DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: $DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
-  DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: $DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
-  DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL: $DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL
-
+  DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES: ${DASK_DISTRIBUTED__SCHEDULER__ALLOWED_FAILURES} 
+  DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT: ${DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT}
+  DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP: ${DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP}
+  DASK_DISTRIBUTED__WORKER__DAEMON: ${DASK_DISTRIBUTED__WORKER__DAEMON}
+  DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE: ${DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE}
+  DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE: ${DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE}
+  DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL: ${DASK_DISTRIBUTED__WORKER__PROFILE_INTERVAL}
 EOF
 
 if [[ "${CLUSTER}" == "${CLUSTER_NAME}" ]]; then
@@ -288,23 +291,28 @@ printf "${GREEN}Dask dashboard: http://127.0.0.1:8687/status ${OFF}\n"
 printf "${GREEN}Tensorboard: http://127.0.0.1:5056 ${OFF}\n"
 echo ""
 
-printf "${GREEN}Port-forward: \
-'kubectl port-forward ${SCHEDULER_POD} 8889 8686 8687 5056' \
+printf "${GREEN}Port-forward from the scheduler: \
+'kubectl port-forward ${SCHEDULER_POD} 8889 8686 8687' \
 Use 'pkill kubectl -9' to kill. ${OFF}\n"
+
+printf "${GREEN}Port-forward from rank-0: \
+'kubectl port-forward ${CLUSTER_NAME}-kolotoc-0 5056' ${OFF}\n"
+
 printf "${GREEN}Access entrypoint: \
 'kubectl exec ${SCHEDULER_POD} -it /bin/bash' ${OFF}\n"
 echo ""
 
 printf "${GREEN}Stream logs: \
 'kubectl logs ${SCHEDULER_POD} -f' ${OFF}\n"
+
 printf "${GREEN}Copy trials/checkpoints: \
-'kubectl cp default/${SCHEDULER_POD}:/root/$PROJECT_NAME/checkpoints \
+'kubectl cp default/${CLUSTER_NAME}-kolotoc-0:/root/$PROJECT_NAME/checkpoints \
 ${PROJECT_DIR}/trials/${CLUSTER_NAME}' ${OFF}\n"
 echo ""
 
-printf "${GREEN}Switch to master branch across all pods: \
+printf "${GREEN}Switch to master branch across all ranks(pods): \
 'repo checkout master' ${OFF}\n"
-printf "${GREEN}Update the repository across all pods: \
+printf "${GREEN}Update the repository across all ranks(pods): \
 'repo update master' ${OFF}\n"
 printf "${GREEN}Go to ring zero (rank-zero): \
 'goto ring 0' ${OFF}\n"

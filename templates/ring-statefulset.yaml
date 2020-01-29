@@ -76,6 +76,8 @@ spec:
           value: "{{ .Values.cuda.stubs }}"
         - name: NUM_DASK_WORKERS
           value: "{{ .Values.ring.workers }}"
+        - name: TENSORBOARD_PORT
+          value: "{{ .Values.ring.tensorboardPort }}"
         - name: DASK_SCHEDULER_ADDRESS
           value: {{ template "kolotoc.fullname" . }}-scheduler
      {{- if .Values.env }}
@@ -103,8 +105,7 @@ spec:
                 . /kolotoc/generated/cuda.sh && 
                 . /kolotoc/generated/wait.sh &&       
                 . /kolotoc/generated/run.sh"]
-        resources:
-          requests:
-            nvidia.com/gpu: {{ .Values.ring.gpus }}
+        resources:        
           limits:
-            nvidia.com/gpu: {{ .Values.ring.gpus }}            
+            # "GPUs are only supposed to be specified in the limits section"
+            nvidia.com/gpu: {{ .Values.ring.gpus | quote }}

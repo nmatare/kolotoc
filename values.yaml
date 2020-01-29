@@ -1,12 +1,12 @@
 ---
-projectName: "kolotoc"
+projectName: kolotoc
 image:
-  repository: "nmatare/kolotoc"
-  tag: "latest"
+  repository: nmatare/kolotoc
+  tag: latest
   pullPolicy: IfNotPresent
 
 cuda:
-  stubs: "/usr/local/cuda/targets/x86_64-linux/lib/stubs"
+  stubs: /usr/local/cuda/targets/x86_64-linux/lib/stubs
 
 ssh:
   port: 3222
@@ -21,7 +21,6 @@ scheduler:
   schedulerPort: 8686
   dashboardPort: 8687
   jupyterPort: 8889
-  tensorboardPort: 5056
   resources:
     requests:
       cpu: 1000m
@@ -31,6 +30,18 @@ scheduler:
       memory: 5Gi
 
 ring:
+  tensorboardPort: 5056
   number: 1
   workers: 1  # one dask-worker process per pod
+  # "Each container can request one or more GPUs. 
+  # "It is not possible to request a fraction of a GPU"
+  # https://docs.google.com/document/d/1ZgKH_K4SEfdiE_OfxQ836s4yQWxZfSjS288Tq9YIWCA/edit#
+  # https://github.com/kubernetes/kubernetes/issues/52757
+  # Allowing pods to consume fractional (shared gpus) is currently in design.
+
+  # The currently available third party work-arounds (see issue 52757)
+  # do not work because we use the special Google Cloud nvidia-driver as opposed 
+  # to the standard nvidia device driver: 
+  # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+  # https://cloud.google.com/kubernetes-engine/docs/how-to/gpus
   gpus: 0

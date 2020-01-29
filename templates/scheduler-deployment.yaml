@@ -71,8 +71,6 @@ spec:
           value: "{{ .Values.scheduler.dashboardPort }}"
         - name: JUPYTER_LAB_PORT
           value: "{{ .Values.scheduler.jupyterPort }}"
-        - name: TENSORBOARD_PORT
-          value: "{{ .Values.scheduler.tensorboardPort }}"
         - name: OPENMPI_SSH_PORT
           value: "{{ .Values.ssh.port }}"
        {{- if .Values.env }}
