@@ -45,7 +45,7 @@ ZONE="us-east1-d"
 # k80/t4 -  us-east1-d
 # p100 - us-east1-b
 # p4   - us-east4-a
-MACHINE_DISK_SIZE=300
+MACHINE_DISK_SIZE=150
 MACHINE_GPUS=0
 NUM_RANKS_PER_NODE=1
 GOOGLE_CLOUD_NVIDIA_DEVICE_DRIVER=https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded.yaml
@@ -168,7 +168,7 @@ if [[ "${MACHINE_GPUS}" -gt "0" ]]; then
   case "${GPU_TYPE}" in
     "nvidia-tesla-k80")
       shift
-      ZONE="us-west1-b"  # us-west1-b
+      ZONE="us-east1-c"  # us-east1-d  us-west1-b us-east1-c
       ;;
     "nvidia-tesla-t4")
       shift
@@ -223,9 +223,6 @@ gcloud container clusters get-credentials "${CLUSTER_NAME}" --zone "${ZONE}"
 if [[ "${MACHINE_GPUS}" -gt "0" ]]; then
   printf "${GREEN}Applying GPU device installer... ${OFF}\n"
   kubectl apply -f "${GOOGLE_CLOUD_NVIDIA_DEVICE_DRIVER}"
-  kubectl label nodes $(kubectl get nodes -l \
-    cloud.google.com/gke-nodepool=default-pool \
-    -o jsonpath="{.items[0].metadata.name}") hardware-type=NVIDIAGPU  --overwrite
 
 fi
 
@@ -255,7 +252,7 @@ ring:
   number: $((${NUM_RANKS_PER_NODE} * ${NUM_NODES}))
   workers: 1
   gpus: $(if [[ "${MACHINE_GPUS}" -gt "0" ]]; then 
-    echo "${MACHINE_GPUS}"; else echo "0"; fi)
+    echo "1"; else echo "0"; fi)
 
 env:
   BUILD_KEY_LOCATION: ${BUILD_KEY_LOCATION}
@@ -289,6 +286,9 @@ printf "${RED}Password: ${JUPYTER_NOTEBOOK_PASSWORD} ${OFF}\n"
 
 printf "${GREEN}Dask dashboard: http://127.0.0.1:8687/status ${OFF}\n"
 printf "${GREEN}Tensorboard: http://127.0.0.1:5056 ${OFF}\n"
+echo ""
+
+printf "${GREEN}New tmux session: tmux new -s ${PROJECT_NAME} ${OFF}\n"
 echo ""
 
 printf "${GREEN}Port-forward from the scheduler: \

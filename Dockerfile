@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --allow-downgrades \
   vim \
   wget \
   unzip \
+  tmux \
   g++-4.8 \
   libnccl2 \
   libnccl-dev \
