@@ -1,3 +1,7 @@
+----
+
+This project is no longer maintained. But it might help you as an example to integrate Horovod, Dask, and Kuberenetes together. Use [Ray](https://github.com/ray-project/ray) instead!
+
 ## Introduction
 
 This chart uses the [Helm Package Manager](https://helm.sh/) to setup a Kubernetes managed cluster with a distributed ring-all-reduce training framework [(Horovod)](https://eng.uber.com/horovod/), alongside a flexible task scheduling system [(Dask)](https://dask.org/)
